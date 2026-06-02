@@ -2,8 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>CE + PFA Capacity Arbitrage v32 (Bulletproof Sync)</title>
+<title>CE + PFA Capacity Arbitrage v33 (Blended UI & Bulletproof Sync)</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- FIREBASE SDKS (Silent Fallback if Blocked) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -137,11 +138,12 @@
 </head>
 <body>
 
-<h1>CE + PFA Capacity Arbitrage v32</h1>
+<h1>CE + PFA Capacity Arbitrage v33</h1>
 <p class="subtitle">Full System Funnel: Phone Screen & Eval Capacity Alignment (Integrated Bypass Engine)</p>
 
 <div class="month-bar" id="month-bar-container">
-  </div>
+  <!-- Months Rendered via JS -->
+</div>
 
 <div class="grid">
   <div class="panel">
@@ -222,7 +224,7 @@
     <div class="panel">
       <h2>Executive Staffing & Utilization</h2>
       <p style="font-size:10px; color:#64748b; margin-bottom:12px; line-height:1.4;">
-        <strong>Methodology:</strong> "Ideal Need" assumes CEs can flexibly share 100% of their total clinical time. "Strict Need" calculates the absolute number of bodies required to clear the bottleneck based purely on rigid daily quotas (The Suitcase Paradox).
+        <strong>Methodology:</strong> "Fluid Time" assumes CEs convert all unused Phone Screen time strictly into Evaluation capacity. "Strict Quota" calculates limits based purely on rigid daily policies (The Suitcase Paradox).
       </p>
       <div class="results-grid" id="metrics-output"></div>
     </div>
@@ -288,6 +290,7 @@
   </div>
 </div>
 
+<!-- DYNAMIC CALENDAR MODAL -->
 <div class="modal-overlay" id="ptoModal">
   <div class="modal-box">
     <div class="modal-header">
@@ -344,63 +347,70 @@ let firebaseInitialized = false;
 const DB_PATH = '/pfa_arbitrage_forecast';
 
 function initFirebaseSync() {
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-  firebaseInitialized = true;
-  const db = firebase.database();
-  
-  db.ref(DB_PATH).once('value').then(snap => {
-    if(snap.exists()) {
-      const data = snap.val();
-      
-      MONTHS = data.MONTHS || [...DEFAULT_MONTHS];
-      PROJ_APPS_BASE = data.PROJ_APPS_BASE || [...DEFAULT_APPS];
-      ENROLL_TGTS = data.ENROLL_TGTS || [...DEFAULT_TGTS];
-      WORKING_DAYS = data.WORKING_DAYS || [...DEFAULT_WD];
-      PTO_DAYS = data.PTO_DAYS || [...DEFAULT_CE_PTO];
-      PFA_PTO_DAYS = data.PFA_PTO_DAYS || [...DEFAULT_PFA_PTO];
-      ARCHIVE_DATA = data.ARCHIVE_DATA || [];
-      PRESETS = data.PRESETS || {};
-
-      // DEFENSIVE MAP: Firebase deletes empty objects inside arrays, causing nulls that break the UI thread.
-      // This map forces the browser to rebuild the missing data structure instantly.
-      const rawWkTgts = data.WK_TGTS || [];
-      WK_TGTS = rawWkTgts.map(w => w ? w : {psSched: '', psComp: '', evSched: '', evComp: '', enr: ''});
-      
-      // Ensure the WK_TGTS array matches the length of MONTHS to prevent out-of-bounds crashes
-      while(WK_TGTS.length < MONTHS.length) {
-          WK_TGTS.push({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''});
-      }
-
-      localStorage.setItem('ce_months', JSON.stringify(MONTHS));
-      localStorage.setItem('ce_apps_base', JSON.stringify(PROJ_APPS_BASE));
-      localStorage.setItem('ce_enroll_tgts', JSON.stringify(ENROLL_TGTS));
-      localStorage.setItem('ce_working_days', JSON.stringify(WORKING_DAYS));
-      localStorage.setItem('ce_pto_days', JSON.stringify(PTO_DAYS));
-      localStorage.setItem('ce_pfa_pto_days', JSON.stringify(PFA_PTO_DAYS));
-      localStorage.setItem('ce_wk_tgts', JSON.stringify(WK_TGTS));
-      localStorage.setItem('ce_archive_data', JSON.stringify(ARCHIVE_DATA));
-      localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
-
-      updatePresetDropdown();
-      renderMonthBar();
-      if (selMonth >= MONTHS.length) selMonth = Math.max(0, MONTHS.length - 1);
-      setMonth(selMonth);
-    } else {
-      pushToFirebase();
+  try {
+    if (typeof firebase === 'undefined') {
+      console.warn("Firebase SDK blocked by browser/firewall. Running completely local.");
+      return;
     }
-  }).catch(err => console.warn("Firebase Read Blocked/Failed (Loading from Local Storage):", err));
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    firebaseInitialized = true;
+    const db = firebase.database();
+    
+    db.ref(DB_PATH).once('value').then(snap => {
+      if(snap.exists()) {
+        const data = snap.val();
+        
+        MONTHS = data.MONTHS || [...DEFAULT_MONTHS];
+        PROJ_APPS_BASE = data.PROJ_APPS_BASE || [...DEFAULT_APPS];
+        ENROLL_TGTS = data.ENROLL_TGTS || [...DEFAULT_TGTS];
+        WORKING_DAYS = data.WORKING_DAYS || [...DEFAULT_WD];
+        PTO_DAYS = data.PTO_DAYS || [...DEFAULT_CE_PTO];
+        PFA_PTO_DAYS = data.PFA_PTO_DAYS || [...DEFAULT_PFA_PTO];
+        ARCHIVE_DATA = data.ARCHIVE_DATA || [];
+        PRESETS = data.PRESETS || {};
+
+        const rawWkTgts = data.WK_TGTS || [];
+        WK_TGTS = Array.isArray(rawWkTgts) ? rawWkTgts.map(w => w ? w : {psSched: '', psComp: '', evSched: '', evComp: '', enr: ''}) : Array.from({length: 8}, () => ({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''}));
+        
+        while(WK_TGTS.length < MONTHS.length) {
+            WK_TGTS.push({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''});
+        }
+
+        localStorage.setItem('ce_months', JSON.stringify(MONTHS));
+        localStorage.setItem('ce_apps_base', JSON.stringify(PROJ_APPS_BASE));
+        localStorage.setItem('ce_enroll_tgts', JSON.stringify(ENROLL_TGTS));
+        localStorage.setItem('ce_working_days', JSON.stringify(WORKING_DAYS));
+        localStorage.setItem('ce_pto_days', JSON.stringify(PTO_DAYS));
+        localStorage.setItem('ce_pfa_pto_days', JSON.stringify(PFA_PTO_DAYS));
+        localStorage.setItem('ce_wk_tgts', JSON.stringify(WK_TGTS));
+        localStorage.setItem('ce_archive_data', JSON.stringify(ARCHIVE_DATA));
+        localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
+
+        updatePresetDropdown();
+        renderMonthBar();
+        if (selMonth >= MONTHS.length) selMonth = Math.max(0, MONTHS.length - 1);
+        setMonth(selMonth);
+      } else {
+        pushToFirebase();
+      }
+    }).catch(err => console.warn("Firebase Read Blocked/Failed (Loading from Local Storage):", err));
+  } catch (e) {
+    console.error("Firebase initialization failed:", e);
+  }
 }
 
 function pushToFirebase() {
-  if (!firebaseInitialized) return;
-  const payload = { MONTHS, PROJ_APPS_BASE, ENROLL_TGTS, WORKING_DAYS, PTO_DAYS, PFA_PTO_DAYS, WK_TGTS, ARCHIVE_DATA, PRESETS };
-  
-  // Appended .catch() to ensure permission/sync errors do not leak out and freeze the main browser thread
-  firebase.database().ref(DB_PATH).set(payload).catch(err => {
-     console.warn("Firebase Write Failed (Your data was still saved locally):", err);
-  });
+  try {
+    if (!firebaseInitialized) return;
+    const payload = { MONTHS, PROJ_APPS_BASE, ENROLL_TGTS, WORKING_DAYS, PTO_DAYS, PFA_PTO_DAYS, WK_TGTS, ARCHIVE_DATA, PRESETS };
+    firebase.database().ref(DB_PATH).set(payload).catch(err => {
+       console.warn("Firebase Write Failed (Your data was still saved locally):", err);
+    });
+  } catch (e) {
+    console.error("Firebase push failed:", e);
+  }
 }
 
 // ── DEFAULTS & DYNAMIC STORAGE ──
@@ -424,7 +434,6 @@ let WK_TGTS = JSON.parse(localStorage.getItem('ce_wk_tgts')) || DEFAULT_WK_TGTS;
 let ARCHIVE_DATA = JSON.parse(localStorage.getItem('ce_archive_data')) || [];
 let PRESETS = JSON.parse(localStorage.getItem('ce_presets')) || {};
 
-// Final safety net for purely local corrupted cache
 if(WK_TGTS.length < MONTHS.length) {
     while(WK_TGTS.length < MONTHS.length) { WK_TGTS.push({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''}); }
 }
@@ -472,7 +481,7 @@ function savePreset() {
   localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
   updatePresetDropdown();
   document.getElementById('preset-select').value = name;
-  pushToFirebase();
+  pushToFirebase(); 
 }
 
 function loadPreset() {
@@ -498,7 +507,7 @@ function loadPreset() {
     if(data.arrays.WK_TGTS) {
       WK_TGTS = JSON.parse(JSON.stringify(data.arrays.WK_TGTS)).map(w => w ? w : {psSched: '', psComp: '', evSched: '', evComp: '', enr: ''});
     }
-    saveDataToLocal();
+    saveDataToLocal(); 
   }
   
   renderMonthBar();
@@ -513,13 +522,14 @@ function deletePreset() {
     delete PRESETS[sel.value];
     localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
     updatePresetDropdown();
-    pushToFirebase();
+    pushToFirebase(); 
   }
 }
 
 // ── DYNAMIC UI RENDERING ──
 function renderMonthBar() {
   const container = document.getElementById('month-bar-container');
+  if(!container) return;
   container.innerHTML = '<span class="month-bar-label">Month:</span>';
   MONTHS.forEach((m, i) => {
     container.innerHTML += `<button class="month-btn" onclick="setMonth(${i})">${m}</button>`;
@@ -542,6 +552,7 @@ function syncModalToMemory() {
 
 function renderModalTables() {
   const tbody = document.getElementById('modal-table-body');
+  if(!tbody) return;
   let html = '';
   for (let i = 0; i < MONTHS.length; i++) {
     html += `<tr>
@@ -559,7 +570,7 @@ function renderModalTables() {
   const archContainer = document.getElementById('archive-container');
   const archList = document.getElementById('archive-list');
   if (ARCHIVE_DATA.length > 0) {
-    archContainer.style.display = 'block';
+    if(archContainer) archContainer.style.display = 'block';
     let archHtml = '';
     ARCHIVE_DATA.forEach((item, i) => {
       archHtml += `
@@ -571,18 +582,22 @@ function renderModalTables() {
           </div>
         </div>`;
     });
-    archList.innerHTML = archHtml;
+    if(archList) archList.innerHTML = archHtml;
   } else {
-    archContainer.style.display = 'none';
+    if(archContainer) archContainer.style.display = 'none';
   }
 }
 
 function openSettingsModal() {
   renderModalTables();
-  document.getElementById('ptoModal').classList.add('open');
+  const modal = document.getElementById('ptoModal');
+  if(modal) modal.classList.add('open');
 }
 
-function closeSettingsModal() { document.getElementById('ptoModal').classList.remove('open'); }
+function closeSettingsModal() { 
+  const modal = document.getElementById('ptoModal');
+  if(modal) modal.classList.remove('open'); 
+}
 
 function addMonthRow() {
   syncModalToMemory();
@@ -688,15 +703,14 @@ function syncToArrays() {
 // ── APP LOGIC ──
 function setMonth(i) { 
   selMonth = i; 
-  document.querySelectorAll('.month-bar .month-btn').forEach((b, idx) => b.classList.toggle('active', idx === i)); 
+  document.querySelectorAll('.month-btn').forEach((b, idx) => b.classList.toggle('active', idx === i)); 
   
-  document.getElementById('apps-base-input').value = PROJ_APPS_BASE[i] || 0; 
-  document.getElementById('enroll-target').value = ENROLL_TGTS[i] || 0; 
-  document.getElementById('workingDays').value = WORKING_DAYS[i] || 0; 
-  document.getElementById('ptoDays').value = PTO_DAYS[i] || 0; 
-  document.getElementById('pfaPtoDays').value = PFA_PTO_DAYS[i] || 0;
+  const elApps = document.getElementById('apps-base-input'); if(elApps) elApps.value = PROJ_APPS_BASE[i] || 0; 
+  const elTgt = document.getElementById('enroll-target'); if(elTgt) elTgt.value = ENROLL_TGTS[i] || 0; 
+  const elWd = document.getElementById('workingDays'); if(elWd) elWd.value = WORKING_DAYS[i] || 0; 
+  const elPto = document.getElementById('ptoDays'); if(elPto) elPto.value = PTO_DAYS[i] || 0; 
+  const elPfaPto = document.getElementById('pfaPtoDays'); if(elPfaPto) elPfaPto.value = PFA_PTO_DAYS[i] || 0;
 
-  // Defensive lookup against missing array indices
   const wk = WK_TGTS[i] || {};
   const elPsSched = document.getElementById('wt-psSched'); if(elPsSched) elPsSched.value = wk.psSched || '';
   const elPsComp = document.getElementById('wt-psComp'); if(elPsComp) elPsComp.value = wk.psComp || '';
@@ -740,8 +754,15 @@ function calculateMetrics(mIdx) {
     const cePsCap = ((stdCEs * rv('stdCePsQuota')) + (leadCEs * rv('leadCePsQuota'))) * netCeWd * ceShrink;
     const ceEvCap = ((stdCEs * rv('stdCeEvalQuota')) + (leadCEs * rv('leadCeEvalQuota'))) * netCeWd * ceShrink;
     
-    const ceMinReq = (cePsDemand * rv('psAht')) + (ceEvalDemand * rv('evalAht'));
-    const ceDailyProdMins = (rv('stdCePsQuota') * rv('psAht')) + (rv('stdCeEvalQuota') * rv('evalAht'));
+    // Ideal Fluid Eval Capacity Calculation
+    const psAht = rv('psAht');
+    const evalAht = rv('evalAht');
+    const unusedCePsCap = Math.max(0, cePsCap - cePsDemand);
+    const rolledOverEvalCap = evalAht > 0 ? (unusedCePsCap * psAht) / evalAht : 0;
+    const ceFluidEvCap = ceEvCap + rolledOverEvalCap;
+    
+    const ceMinReq = (cePsDemand * psAht) + (ceEvalDemand * evalAht);
+    const ceDailyProdMins = (rv('stdCePsQuota') * psAht) + (rv('stdCeEvalQuota') * evalAht);
     const monthlyMinsPerCE = ceDailyProdMins * netCeWd * ceShrink;
     const reqCEs = monthlyMinsPerCE > 0 ? ceMinReq / monthlyMinsPerCE : 0;
 
@@ -779,7 +800,7 @@ function calculateMetrics(mIdx) {
     const actualEvComp = ceEvalDemand * evalComp;
 
     return { 
-      apps, systemPsDemand, pfaPsDemand, ceEvalDemand, cePsCap, ceEvCap, 
+      apps, systemPsDemand, pfaPsDemand, cePsDemand, ceEvalDemand, cePsCap, ceEvCap, ceFluidEvCap,
       pfaPsCap, systemPsCap, reqCEs, reqCEsStrict, reqPFAs, pfaApps, 
       maxYield: trueMaxYield, 
       actualEnrolled, actualPsComp, actualEvComp, tgt, totalEvalsFed 
@@ -804,158 +825,186 @@ function updateWkRow(id, dem, cap) {
 }
 
 function sync() {
-  const m = calculateMetrics(selMonth);
+  try {
+    const m = calculateMetrics(selMonth);
 
-  const psAht = rv('psAht');
-  const evAht = rv('evalAht');
-  
-  ['appGrowth', 'psAht', 'evalAht', 'pfaPct', 'psSchedRate', 'shrinkage', 'pfaShrinkage', 'psComp', 'siRate', 'schedRate', 'evalComp', 'enrollRate'].forEach(id => {
-    const el = document.getElementById(id + '-v');
-    if (el) el.textContent = (id.includes('Aht') ? rv(id) + 'm' : (id==='appGrowth' ? '+' : '') + rv(id) + '%');
-  });
-  
-  const grossEl = document.getElementById('gross-ps-ro');
-  if(grossEl) grossEl.textContent = fmt(m.apps * (rv('psSchedRate')/100));
+    const psAht = rv('psAht');
+    const evAht = rv('evalAht');
+    
+    ['appGrowth', 'psAht', 'evalAht', 'pfaPct', 'psSchedRate', 'shrinkage', 'pfaShrinkage', 'psComp', 'siRate', 'schedRate', 'evalComp', 'enrollRate'].forEach(id => {
+      const el = document.getElementById(id + '-v');
+      if (el) el.textContent = (id.includes('Aht') ? rv(id) + 'm' : (id==='appGrowth' ? '+' : '') + rv(id) + '%');
+    });
+    
+    const grossEl = document.getElementById('gross-ps-ro');
+    if(grossEl) grossEl.textContent = fmt(m.apps * (rv('psSchedRate')/100));
 
-  const stdHrs = ((rv('stdCePsQuota') * psAht) + (rv('stdCeEvalQuota') * evAht)) / 60;
-  const leadHrs = ((rv('leadCePsQuota') * psAht) + (rv('leadCeEvalQuota') * evAht)) / 60;
-  const pfaHrs = (rv('pfaDailyQuota') * psAht) / 60;
+    const stdHrs = ((rv('stdCePsQuota') * psAht) + (rv('stdCeEvalQuota') * evAht)) / 60;
+    const leadHrs = ((rv('leadCePsQuota') * psAht) + (rv('leadCeEvalQuota') * evAht)) / 60;
+    const pfaHrs = (rv('pfaDailyQuota') * psAht) / 60;
 
-  const stdBadge = document.getElementById('std-load-badge');
-  if(stdBadge) { stdBadge.textContent = stdHrs.toFixed(1) + 'h'; stdBadge.className = stdHrs > 8 ? 'load-badge err' : 'load-badge'; }
+    const stdBadge = document.getElementById('std-load-badge');
+    if(stdBadge) { stdBadge.textContent = stdHrs.toFixed(1) + 'h'; stdBadge.className = stdHrs > 8 ? 'load-badge err' : 'load-badge'; }
 
-  const leadBadge = document.getElementById('lead-load-badge');
-  if(leadBadge) { leadBadge.textContent = leadHrs.toFixed(1) + 'h'; leadBadge.className = leadHrs > 8 ? 'load-badge err' : 'load-badge'; }
+    const leadBadge = document.getElementById('lead-load-badge');
+    if(leadBadge) { leadBadge.textContent = leadHrs.toFixed(1) + 'h'; leadBadge.className = leadHrs > 8 ? 'load-badge err' : 'load-badge'; }
 
-  const pfaBadge = document.getElementById('pfa-load-badge');
-  if(pfaBadge) { pfaBadge.textContent = pfaHrs.toFixed(1) + 'h'; pfaBadge.className = pfaHrs > 8 ? 'load-badge err' : 'load-badge'; }
+    const pfaBadge = document.getElementById('pfa-load-badge');
+    if(pfaBadge) { pfaBadge.textContent = pfaHrs.toFixed(1) + 'h'; pfaBadge.className = pfaHrs > 8 ? 'load-badge err' : 'load-badge'; }
 
-  const sysPsUtil = m.systemPsCap > 0 ? (m.systemPsDemand / m.systemPsCap) * 100 : 0;
-  const psHeadroom = m.systemPsCap - m.systemPsDemand;
-  const psHeadStr = psHeadroom >= 0 ? `<span style="color:#22c55e;">+${fmt(psHeadroom)} headroom</span>` : `<span style="color:#ef4444;">${fmt(Math.abs(psHeadroom))} shortfall</span>`;
-  
-  const evUtil = m.ceEvCap > 0 ? (m.ceEvalDemand / m.ceEvCap) * 100 : 0;
-  const evHeadroom = m.ceEvCap - m.ceEvalDemand;
-  const evHeadStr = evHeadroom >= 0 ? `<span style="color:#22c55e;">+${fmt(evHeadroom)} headroom</span>` : `<span style="color:#ef4444;">${fmt(Math.abs(evHeadroom))} shortfall</span>`;
+    // BLENDED DUAL-BAR UTILIZATION LOGIC
+    const sysPsUtil = m.systemPsCap > 0 ? (m.systemPsDemand / m.systemPsCap) * 100 : 0;
+    const cePsUtil = m.cePsCap > 0 ? (m.cePsDemand / m.cePsCap) * 100 : 0;
+    const pfaPsUtil = m.pfaPsCap > 0 ? (m.pfaPsDemand / m.pfaPsCap) * 100 : 0;
 
-  const curCEs = rv('stdCEs') + rv('leadCEs');
-  const ceDeficit = m.reqCEs - curCEs;
-  const ceStaffStr = ceDeficit > 0.5 ? `<span style="color:#ef4444;">+${ceDeficit.toFixed(1)} Ideal Deficit</span>` : `<span style="color:#22c55e;">Fully Staffed</span>`;
+    const strictEvUtil = m.ceEvCap > 0 ? (m.ceEvalDemand / m.ceEvCap) * 100 : 0;
+    const fluidEvUtil = m.ceFluidEvCap > 0 ? (m.ceEvalDemand / m.ceFluidEvCap) * 100 : 0;
 
-  const curPFAs = rv('pfaHeadcount');
-  const pfaDeficit = m.reqPFAs - curPFAs;
-  const pfaStaffStr = pfaDeficit > 0.5 ? `<span style="color:#ef4444;">+${pfaDeficit.toFixed(1)} needed</span>` : `<span style="color:#22c55e;">Fully Staffed</span>`;
+    const curCEs = rv('stdCEs') + rv('leadCEs');
+    const ceDeficit = m.reqCEs - curCEs;
+    const ceStaffStr = ceDeficit > 0.5 ? `<span style="color:#ef4444;">+${ceDeficit.toFixed(1)} Ideal Deficit</span>` : `<span style="color:#22c55e;">Fully Staffed</span>`;
 
-  const outputEl = document.getElementById('metrics-output');
-  if(outputEl) {
-    outputEl.innerHTML = `
-      <div class="stat-card">
-        <div class="stat-label">PS Utilization</div>
-        <div class="stat-value">${Math.round(sysPsUtil)}%</div>
-        <div class="util-bar-bg"><div class="util-bar-fill ${sysPsUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, sysPsUtil)}%"></div></div>
-        <div class="stat-sub">CE Cap: ${fmt(m.cePsCap)} · PFA Cap: ${fmt(m.pfaPsCap)} · ${psHeadStr}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Eval Utilization</div>
-        <div class="stat-value">${Math.round(evUtil)}%</div>
-        <div class="util-bar-bg"><div class="util-bar-fill ${evUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, evUtil)}%"></div></div>
-        <div class="stat-sub">CE Eval Cap: ${fmt(m.ceEvCap)} · ${evHeadStr}</div>
-      </div>
-      <div class="stat-card hl">
-        <div class="stat-label">Req. CEs (Ideal vs Strict)</div>
-        <div style="display:flex; align-items:baseline; gap:8px;">
-          <div class="stat-value" style="color:#f59e0b;">${m.reqCEs.toFixed(1)}</div>
-          <div style="color:#64748b; font-size:14px; font-weight:600;">/</div>
-          <div class="stat-value" style="color:#ef4444;">${m.reqCEsStrict.toFixed(1)}</div>
+    const curPFAs = rv('pfaHeadcount');
+    const pfaDeficit = m.reqPFAs - curPFAs;
+    const pfaStaffStr = pfaDeficit > 0.5 ? `<span style="color:#ef4444;">+${pfaDeficit.toFixed(1)} needed</span>` : `<span style="color:#22c55e;">Fully Staffed</span>`;
+
+    const outputEl = document.getElementById('metrics-output');
+    if(outputEl) {
+      outputEl.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label" title="Combined System Utilization. Bars below break out the load between CEs and PFAs." style="cursor:help;">System PS Util <span style="color:#a5b4fc;">ⓘ</span></div>
+          <div class="stat-value">${Math.round(sysPsUtil)}%</div>
+          <div style="margin-top: 8px;">
+            <div style="display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;">
+              <span>CEs: ${Math.round(cePsUtil)}%</span><span>${fmt(m.cePsDemand)} / ${fmt(m.cePsCap)}</span>
+            </div>
+            <div class="util-bar-bg" style="margin:0 0 6px 0; height:4px;"><div class="util-bar-fill ${cePsUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, cePsUtil)}%"></div></div>
+            <div style="display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;">
+              <span>PFAs: ${Math.round(pfaPsUtil)}%</span><span>${fmt(m.pfaPsDemand)} / ${fmt(m.pfaPsCap)}</span>
+            </div>
+            <div class="util-bar-bg" style="margin:0; height:4px;"><div class="util-bar-fill ${pfaPsUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, pfaPsUtil)}%"></div></div>
+          </div>
         </div>
-        <div class="stat-sub">
-          Current: ${curCEs} · ${ceStaffStr}
+
+        <div class="stat-card">
+          <div class="stat-label" title="Strict Util shows the bottleneck based on hard daily quotas. Fluid Util shows reality if unused PS time is converted to Evals." style="cursor:help;">CE Eval Util <span style="color:#a5b4fc;">ⓘ</span></div>
+          <div class="stat-value">${Math.round(strictEvUtil)}%</div>
+          <div style="margin-top: 8px;">
+            <div style="display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;">
+              <span>Strict Quota: ${Math.round(strictEvUtil)}%</span><span>Cap: ${fmt(m.ceEvCap)}</span>
+            </div>
+            <div class="util-bar-bg" style="margin:0 0 6px 0; height:4px;"><div class="util-bar-fill ${strictEvUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, strictEvUtil)}%"></div></div>
+            <div style="display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;">
+              <span style="color:#a5b4fc;">Fluid Time: ${Math.round(fluidEvUtil)}%</span><span style="color:#a5b4fc;">Cap: ${fmt(m.ceFluidEvCap)}</span>
+            </div>
+            <div class="util-bar-bg" style="margin:0; height:4px;"><div class="util-bar-fill ${fluidEvUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, fluidEvUtil)}%"></div></div>
+          </div>
         </div>
-      </div>
-      <div class="stat-card hl" style="border-color:#10b981; background:#0f2a1a;">
-        <div class="stat-label" style="color:#86efac;">Required PFA Headcount</div>
-        <div class="stat-value">${m.reqPFAs.toFixed(1)}</div>
-        <div class="stat-sub" style="color:#86efac;">
-          Current: ${curPFAs} · Cap: ${fmt(m.pfaPsCap)} PSs · ${pfaStaffStr}
+
+        <div class="stat-card hl">
+          <div class="stat-label">Req. CEs (Ideal vs Strict)</div>
+          <div style="display:flex; align-items:baseline; gap:8px;">
+            <div class="stat-value" style="color:#f59e0b;">${m.reqCEs.toFixed(1)}</div>
+            <div style="color:#64748b; font-size:14px; font-weight:600;">/</div>
+            <div class="stat-value" style="color:#ef4444;">${m.reqCEsStrict.toFixed(1)}</div>
+          </div>
+          <div class="stat-sub">
+            Current: ${curCEs} · ${ceStaffStr}
+          </div>
         </div>
-      </div>
-    `;
+        
+        <div class="stat-card hl" style="border-color:#10b981; background:#0f2a1a;">
+          <div class="stat-label" style="color:#86efac;">Required PFA Headcount</div>
+          <div class="stat-value">${m.reqPFAs.toFixed(1)}</div>
+          <div class="stat-sub" style="color:#86efac;">
+            Current: ${curPFAs} · Cap: ${fmt(m.pfaPsCap)} PSs · ${pfaStaffStr}
+          </div>
+        </div>
+      `;
+    }
+
+    const yieldRatio = m.actualEnrolled > 0 ? (m.tgt / m.actualEnrolled) : 0;
+
+    const bannerEl = document.getElementById('target-banner');
+    if(bannerEl) {
+      bannerEl.innerHTML = `
+        <div class="tb-item"><div class="tb-label">Enroll Target</div><div class="tb-val">${fmt(m.tgt)}</div></div>
+        <div class="tb-sep"></div>
+        <div class="tb-item"><div class="tb-label">Target Evals Needed</div><div class="tb-val" style="color:#a5b4fc">${fmt(m.actualEvComp * yieldRatio)}</div></div>
+        <div class="tb-sep"></div>
+        <div class="tb-item"><div class="tb-label">Max Cap Yield</div><div class="tb-val" style="color:#a5b4fc">${fmt(m.maxYield)}</div></div>
+        <div class="tb-sep"></div>
+        <div class="tb-item"><div class="tb-label">Variance</div><div class="tb-val" style="color:${m.maxYield>=m.tgt?'#22c55e':'#ef4444'}">${m.maxYield>=m.tgt?'+':''}${fmt(m.maxYield-m.tgt)}</div></div>
+      `;
+    }
+
+    updateWkRow('psSched', m.systemPsDemand / WEEKS_PER_MONTH, m.systemPsCap / WEEKS_PER_MONTH);
+    updateWkRow('psComp', m.actualPsComp / WEEKS_PER_MONTH, (m.systemPsCap * (rv('psComp')/100)) / WEEKS_PER_MONTH);
+    updateWkRow('evSched', m.ceEvalDemand / WEEKS_PER_MONTH, m.ceEvCap / WEEKS_PER_MONTH);
+    updateWkRow('evComp', m.actualEvComp / WEEKS_PER_MONTH, (m.ceEvCap * (rv('evalComp')/100)) / WEEKS_PER_MONTH);
+    updateWkRow('enr', m.actualEnrolled / WEEKS_PER_MONTH, m.maxYield / WEEKS_PER_MONTH);
+
+    // Dynamic Narrative Generation
+    let narrative = `<h3>Monthly Executive Insight</h3>`;
+
+    narrative += `<p><strong>1. Target & Bottleneck Analysis:</strong> Our end-to-end capacity yield is <strong>${fmt(m.maxYield)} enrollments</strong> against a target of ${fmt(m.tgt)}. `;
+    if (m.maxYield >= m.tgt) {
+      narrative += `<span style="color:#22c55e;">This indicates our funnel is fully optimized and staffed to clear the required pipeline.</span></p>`;
+    } else {
+      let bottleneck = (m.totalEvalsFed < m.ceEvalDemand) ? "Phone Screen" : "Clinical Evaluation";
+      if (m.totalEvalsFed < m.ceEvalDemand && m.ceEvCap < m.ceEvalDemand) bottleneck = "Phone Screen and Clinical Evaluation";
+      narrative += `<span style="color:#ef4444;">We are projecting a shortfall of ${fmt(m.tgt - m.maxYield)} enrollments. This system is primarily constrained by <strong>${bottleneck}</strong> capacity, meaning pipeline flow will stall.</span></p>`;
+    }
+    
+    const strictPenalty = m.reqCEsStrict - m.reqCEs;
+    if (strictPenalty > 0.5) {
+      narrative += `<p><strong>⚠️ The Cost of Rigidity (The Suitcase Paradox):</strong> In a fluid environment, we only need <strong>${m.reqCEs.toFixed(1)} CEs</strong>. However, because our daily quotas strictly cap what a CE can do, the math dictates we need <strong>${m.reqCEsStrict.toFixed(1)} CEs</strong> to clear the bottlenecked queue. This rigid policy is artificially inflating our headcount requirement by <strong>${strictPenalty.toFixed(1)} FTEs</strong> who would effectively sit idle for portions of their shift.</p>`;
+    }
+
+    if (strictEvUtil > 100 && fluidEvUtil <= 100) {
+      narrative += `<p><strong>💡 Opportunity Unlocked (Fluid Scheduling):</strong> Because PFAs are absorbing top-of-funnel volume, CEs have unused time. While strict quotas show an Evaluation bottleneck, switching to <strong>Fluid Scheduling</strong> allows CEs to use that freed-up time for Evals, dropping utilization to a healthy <strong>${Math.round(fluidEvUtil)}%</strong> and requiring 0 additional headcount.</p>`;
+    }
+
+    narrative += `<p><strong>2. PFA Arbitrage Strategy:</strong> By diverting ${rv('pfaPct')}% of volume to PFAs, we are shielding CEs from <strong>${fmt(m.pfaPsDemand)} phone screens</strong>. `;
+    if (pfaDeficit > 0.5) {
+      narrative += `However, we are short <strong>${pfaDeficit.toFixed(1)} PFAs</strong>. The current PFA team can only process ${fmt(m.pfaPsCap)} screens, creating a top-of-funnel choke point.</p>`;
+    } else {
+      narrative += `The PFA team is adequately staffed to absorb this volume without bottlenecking.</p>`;
+    }
+
+    narrative += `<p><strong>3. CE Clinical Staffing:</strong> `;
+    if (ceDeficit > 0.5) {
+      narrative += `Even with PFA diversion, we remain short <strong>${ceDeficit.toFixed(1)} CEs</strong> to handle the downstream demand of ${fmt(m.ceEvalDemand)} evaluations. We must increase CE headcount or face severe scheduling delays.</p>`;
+    } else if (ceDeficit < -0.5) {
+      narrative += `CEs have a healthy capacity surplus and are well-staffed to clear the evaluation queue.</p>`;
+    } else {
+      narrative += `CE headcount is perfectly balanced with incoming clinical demand.</p>`;
+    }
+
+    const nOut = document.getElementById('narrative-output');
+    if(nOut) nOut.innerHTML = narrative;
+
+    const maxBar = Math.max(m.systemPsDemand, m.systemPsCap) * 1.1;
+    const dBar = document.getElementById('demand-bars');
+    if(dBar) {
+      dBar.innerHTML = `
+        <div class="funnel-row"><div class="funnel-lbl">Total PS Demand</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-std" style="width:${(m.systemPsDemand/maxBar)*100}%"><span>${fmt(m.systemPsDemand)}</span></div></div></div>
+        <div class="funnel-row"><div class="funnel-lbl">Total Eval Demand</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-std" style="width:${(m.ceEvalDemand/maxBar)*100}%"><span>${fmt(m.ceEvalDemand)}</span></div></div></div>
+      `;
+    }
+    const cBar = document.getElementById('capacity-bars');
+    if(cBar) {
+      cBar.innerHTML = `
+        <div class="funnel-row"><div class="funnel-lbl">CE PS Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-cap" style="width:${(m.cePsCap/maxBar)*100}%"><span>${fmt(m.cePsCap)}</span></div></div></div>
+        <div class="funnel-row"><div class="funnel-lbl">PFA PS Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-pfa" style="width:${(m.pfaPsCap/maxBar)*100}%"><span>${fmt(m.pfaPsCap)}</span></div></div></div>
+        <div class="funnel-row"><div class="funnel-lbl">CE Eval Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-cap" style="width:${(m.ceEvCap/maxBar)*100}%"><span>${fmt(m.ceEvCap)}</span></div></div></div>
+      `;
+    }
+
+    updateChart();
+  } catch (err) {
+    console.error("Sync Error - Data structure mismatch gracefully bypassed:", err);
   }
-
-  const yieldRatio = m.actualEnrolled > 0 ? (m.tgt / m.actualEnrolled) : 0;
-
-  const bannerEl = document.getElementById('target-banner');
-  if(bannerEl) {
-    bannerEl.innerHTML = `
-      <div class="tb-item"><div class="tb-label">Enroll Target</div><div class="tb-val">${fmt(m.tgt)}</div></div>
-      <div class="tb-sep"></div>
-      <div class="tb-item"><div class="tb-label">Target Evals Needed</div><div class="tb-val" style="color:#a5b4fc">${fmt(m.actualEvComp * yieldRatio)}</div></div>
-      <div class="tb-sep"></div>
-      <div class="tb-item"><div class="tb-label">Max Cap Yield</div><div class="tb-val" style="color:#a5b4fc">${fmt(m.maxYield)}</div></div>
-      <div class="tb-sep"></div>
-      <div class="tb-item"><div class="tb-label">Variance</div><div class="tb-val" style="color:${m.maxYield>=m.tgt?'#22c55e':'#ef4444'}">${m.maxYield>=m.tgt?'+':''}${fmt(m.maxYield-m.tgt)}</div></div>
-    `;
-  }
-
-  updateWkRow('psSched', m.systemPsDemand / WEEKS_PER_MONTH, m.systemPsCap / WEEKS_PER_MONTH);
-  updateWkRow('psComp', m.actualPsComp / WEEKS_PER_MONTH, (m.systemPsCap * (rv('psComp')/100)) / WEEKS_PER_MONTH);
-  updateWkRow('evSched', m.ceEvalDemand / WEEKS_PER_MONTH, m.ceEvCap / WEEKS_PER_MONTH);
-  updateWkRow('evComp', m.actualEvComp / WEEKS_PER_MONTH, (m.ceEvCap * (rv('evalComp')/100)) / WEEKS_PER_MONTH);
-  updateWkRow('enr', m.actualEnrolled / WEEKS_PER_MONTH, m.maxYield / WEEKS_PER_MONTH);
-
-  let narrative = `<h3>Monthly Executive Insight</h3>`;
-
-  narrative += `<p><strong>1. Target & Bottleneck Analysis:</strong> Our end-to-end capacity yield is <strong>${fmt(m.maxYield)} enrollments</strong> against a target of ${fmt(m.tgt)}. `;
-  if (m.maxYield >= m.tgt) {
-    narrative += `<span style="color:#22c55e;">This indicates our funnel is fully optimized and staffed to clear the required pipeline.</span></p>`;
-  } else {
-    let bottleneck = (m.totalEvalsFed < m.ceEvalDemand) ? "Phone Screen" : "Clinical Evaluation";
-    if (m.totalEvalsFed < m.ceEvalDemand && m.ceEvCap < m.ceEvalDemand) bottleneck = "Phone Screen and Clinical Evaluation";
-    narrative += `<span style="color:#ef4444;">We are projecting a shortfall of ${fmt(m.tgt - m.maxYield)} enrollments. This system is primarily constrained by <strong>${bottleneck}</strong> capacity, meaning pipeline flow will stall.</span></p>`;
-  }
-  
-  const strictPenalty = m.reqCEsStrict - m.reqCEs;
-  if (strictPenalty > 0.5) {
-    narrative += `<p><strong>⚠️ The Cost of Rigidity (The Suitcase Paradox):</strong> In a fluid environment, we only need <strong>${m.reqCEs.toFixed(1)} CEs</strong>. However, because our daily quotas strictly cap what a CE can do, the math dictates we need <strong>${m.reqCEsStrict.toFixed(1)} CEs</strong> to clear the bottlenecked queue. This rigid policy is artificially inflating our headcount requirement by <strong>${strictPenalty.toFixed(1)} FTEs</strong> who would effectively sit idle for portions of their shift.</p>`;
-  }
-
-  narrative += `<p><strong>2. PFA Arbitrage Strategy:</strong> By diverting ${rv('pfaPct')}% of volume to PFAs, we are shielding CEs from <strong>${fmt(m.pfaPsDemand)} phone screens</strong>. `;
-  if (pfaDeficit > 0.5) {
-    narrative += `However, we are short <strong>${pfaDeficit.toFixed(1)} PFAs</strong>. The current PFA team can only process ${fmt(m.pfaPsCap)} screens, creating a top-of-funnel choke point.</p>`;
-  } else {
-    narrative += `The PFA team is adequately staffed to absorb this volume without bottlenecking.</p>`;
-  }
-
-  narrative += `<p><strong>3. CE Clinical Staffing:</strong> `;
-  if (ceDeficit > 0.5) {
-    narrative += `Even with PFA diversion, we remain short <strong>${ceDeficit.toFixed(1)} CEs</strong> to handle the downstream demand of ${fmt(m.ceEvalDemand)} evaluations. We must increase CE headcount or face severe scheduling delays.</p>`;
-  } else if (ceDeficit < -0.5) {
-    narrative += `CEs have a healthy capacity surplus and are well-staffed to clear the evaluation queue.</p>`;
-  } else {
-    narrative += `CE headcount is perfectly balanced with incoming clinical demand.</p>`;
-  }
-
-  const nOut = document.getElementById('narrative-output');
-  if(nOut) nOut.innerHTML = narrative;
-
-  const maxBar = Math.max(m.systemPsDemand, m.systemPsCap) * 1.1;
-  const dBar = document.getElementById('demand-bars');
-  if(dBar) {
-    dBar.innerHTML = `
-      <div class="funnel-row"><div class="funnel-lbl">Total PS Demand</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-std" style="width:${(m.systemPsDemand/maxBar)*100}%"><span>${fmt(m.systemPsDemand)}</span></div></div></div>
-      <div class="funnel-row"><div class="funnel-lbl">Total Eval Demand</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-std" style="width:${(m.ceEvalDemand/maxBar)*100}%"><span>${fmt(m.ceEvalDemand)}</span></div></div></div>
-    `;
-  }
-  const cBar = document.getElementById('capacity-bars');
-  if(cBar) {
-    cBar.innerHTML = `
-      <div class="funnel-row"><div class="funnel-lbl">CE PS Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-cap" style="width:${(m.cePsCap/maxBar)*100}%"><span>${fmt(m.cePsCap)}</span></div></div></div>
-      <div class="funnel-row"><div class="funnel-lbl">PFA PS Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-pfa" style="width:${(m.pfaPsCap/maxBar)*100}%"><span>${fmt(m.pfaPsCap)}</span></div></div></div>
-      <div class="funnel-row"><div class="funnel-lbl">CE Eval Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-cap" style="width:${(m.ceEvCap/maxBar)*100}%"><span>${fmt(m.ceEvCap)}</span></div></div></div>
-    `;
-  }
-
-  updateChart();
 }
 
 function updateChart() {
@@ -995,7 +1044,20 @@ function updateChart() {
       responsive: true, maintainAspectRatio: false, 
       interaction: { mode: 'index', intersect: false },
       plugins: { 
-        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, color: '#94a3b8' } }
+        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, color: '#94a3b8' } },
+        tooltip: {
+          backgroundColor: 'rgba(15, 17, 23, 0.9)',
+          titleColor: '#f1f5f9',
+          bodyColor: '#cbd5e1',
+          borderColor: '#3d4a63',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + context.parsed.y.toFixed(1);
+            }
+          }
+        }
       },
       scales: { 
         y: { beginAtZero: false, grid: { color: '#2d3548' }, ticks: { color: '#94a3b8' } },
