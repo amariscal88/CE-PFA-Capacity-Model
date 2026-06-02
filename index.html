@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>CE + PFA Capacity Arbitrage v33 (Blended UI & Bulletproof Sync)</title>
+<title>CE + PFA Capacity Arbitrage v34 (Cloud-Synced & Summary)</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <!-- FIREBASE SDKS (Silent Fallback if Blocked) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -12,7 +12,9 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 20px; font-size: 13px; }
   h1 { font-size: 17px; font-weight: 700; color: #f8fafc; margin-bottom: 4px; }
-  .subtitle { color: #94a3b8; font-size: 12px; margin-bottom: 16px; }
+  .subtitle { color: #94a3b8; font-size: 12px; margin-bottom: 0; }
+
+  .top-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
 
   .month-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
   .month-btn { padding: 5px 11px; border-radius: 6px; border: 1px solid #2d3548; background: #1e2330; color: #94a3b8; font-size: 12px; cursor: pointer; transition: all 0.15s; }
@@ -109,7 +111,8 @@
   .modal-header h2 { font-size: 14px; font-weight: 700; color: #f8fafc; margin: 0; }
   .modal-close { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; }
   .modal-close:hover { color: #ef4444; }
-  .modal-body { overflow-y: auto; margin-bottom: 16px; flex: 1; }
+  .modal-body { overflow-y: auto; margin-bottom: 16px; flex: 1; padding-right: 8px; }
+  
   .modal-table { width: 100%; border-collapse: collapse; min-width: 550px; }
   .modal-table th { text-align: left; color: #64748b; font-size: 10px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #2d3548; }
   .modal-table td { padding: 6px 8px; border-bottom: 1px solid #1a2030; }
@@ -138,8 +141,13 @@
 </head>
 <body>
 
-<h1>CE + PFA Capacity Arbitrage v33</h1>
-<p class="subtitle">Full System Funnel: Phone Screen & Eval Capacity Alignment (Integrated Bypass Engine)</p>
+<div class="top-header">
+  <div>
+    <h1>CE + PFA Capacity Arbitrage v34</h1>
+    <p class="subtitle">Full System Funnel: Phone Screen & Eval Capacity Alignment (Integrated Bypass Engine)</p>
+  </div>
+  <button class="action-btn" style="background:#1e2330; border-color:#3d4a63; color:#cbd5e1;" onclick="openSummaryModal()">ℹ️ Dashboard Summary</button>
+</div>
 
 <div class="month-bar" id="month-bar-container">
   <!-- Months Rendered via JS -->
@@ -286,6 +294,38 @@
         <div><div class="funnel-title">System Capacity</div><div id="capacity-bars"></div></div>
       </div>
       <div class="narrative-box" id="narrative-output"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD SUMMARY MODAL -->
+<div class="modal-overlay" id="summaryModal">
+  <div class="modal-box" style="width: 720px; max-width: 95%;">
+    <div class="modal-header">
+      <h2>ℹ️ Dashboard Summary & Architecture</h2>
+      <button class="modal-close" onclick="closeSummaryModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="color: #cbd5e1; font-size: 13px; line-height: 1.6; max-height: 70vh; overflow-y: auto;">
+      <p style="margin-bottom: 12px;"><strong style="color: #a5b4fc;">What it does:</strong> Macro-level forecasting, team composition, and handle-time resource planning.</p>
+      
+      <p style="margin-bottom: 16px;"><strong style="color: #a5b4fc;">Core Focus:</strong> This dashboard answers the question: <em>“How many people do we need on staff to process our intake volume and meet our enrollment goals?”</em> It bridges your marketing numbers with your physical roster limitations.</p>
+      
+      <h3 style="color: #f8fafc; font-size: 14px; margin-bottom: 10px; border-bottom: 1px solid #2d3548; padding-bottom: 4px;">Key Features</h3>
+      <ul style="margin-left: 20px; margin-bottom: 20px;">
+        <li style="margin-bottom: 8px;">Models handle times for Phone Screens (PS) vs. Evaluations (EV).</li>
+        <li style="margin-bottom: 8px;">Calculates the split of upper-funnel triage between stateless global pools (PFAs) and state-licensed evaluators (CEs).</li>
+        <li style="margin-bottom: 8px;">Computes "Ideal Need" vs. "Strict Need" to tell you the literal headcount needed to survive calendar restrictions, shrinkage, and step-by-step conversion drops.</li>
+        <li style="margin-bottom: 8px;"><strong>Bottom-Up Math:</strong> It locks in your net available hours (after stripping out granular CE and PFA PTO) and slides that raw capacity down the funnel to project your true mathematical maximum throughput.</li>
+      </ul>
+
+      <h3 style="color: #f8fafc; font-size: 14px; margin-bottom: 10px; border-bottom: 1px solid #2d3548; padding-bottom: 4px;">🧳 The Suitcase Paradox Analogy</h3>
+      <div style="background: #161a24; padding: 12px; border-radius: 6px; border: 1px solid #2d3548;">
+        <p style="margin-bottom: 10px;"><strong>Strict Quota:</strong> The CE's suitcase has a rigid foam insert with exactly 4 Phone Screen slots and 3 Eval slots. If there isn't enough Phone Screen demand to fill the 4 slots, those slots just stay empty. The CE is maxed out at 3 Evals, so their Eval Utilization looks extremely high.</p>
+        <p><strong>Fluid Time:</strong> The suitcase is just an empty duffel bag containing 5 hours of total space. If the CE only packs 1 hour worth of Phone Screens, they can pack 4 hours worth of Evals. Because they have so much extra room for Evals, their Eval Utilization percentage drops safely into the green.</p>
+      </div>
+    </div>
+    <div class="modal-footer" style="border-top: none; padding-top: 16px; justify-content: flex-end;">
+      <button class="action-btn" style="background:#312e81; border-color:#6366f1;" onclick="closeSummaryModal()">CLOSE</button>
     </div>
   </div>
 </div>
@@ -524,6 +564,17 @@ function deletePreset() {
     updatePresetDropdown();
     pushToFirebase(); 
   }
+}
+
+// ── SUMMARY MODAL LOGIC ──
+function openSummaryModal() {
+  const modal = document.getElementById('summaryModal');
+  if(modal) modal.classList.add('open');
+}
+
+function closeSummaryModal() { 
+  const modal = document.getElementById('summaryModal');
+  if(modal) modal.classList.remove('open'); 
 }
 
 // ── DYNAMIC UI RENDERING ──
@@ -872,7 +923,7 @@ function sync() {
     if(outputEl) {
       outputEl.innerHTML = `
         <div class="stat-card">
-          <div class="stat-label" title="Combined System Utilization. Bars below break out the load between CEs and PFAs." style="cursor:help;">System PS Util <span style="color:#a5b4fc;">ⓘ</span></div>
+          <div class="stat-label">System PS Util <span title="Combined System Utilization. Bars below break out the load between CEs and PFAs." style="cursor:help; color:#a5b4fc;">ⓘ</span></div>
           <div class="stat-value">${Math.round(sysPsUtil)}%</div>
           <div style="margin-top: 8px;">
             <div style="display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;">
@@ -887,7 +938,7 @@ function sync() {
         </div>
 
         <div class="stat-card">
-          <div class="stat-label" title="Strict Util shows the bottleneck based on hard daily quotas. Fluid Util shows reality if unused PS time is converted to Evals." style="cursor:help;">CE Eval Util <span style="color:#a5b4fc;">ⓘ</span></div>
+          <div class="stat-label">CE Eval Util <span title="Strict Util shows the bottleneck based on hard daily quotas. Fluid Util shows reality if unused PS time is converted to Evals." style="cursor:help; color:#a5b4fc;">ⓘ</span></div>
           <div class="stat-value">${Math.round(strictEvUtil)}%</div>
           <div style="margin-top: 8px;">
             <div style="display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;">
@@ -1044,20 +1095,7 @@ function updateChart() {
       responsive: true, maintainAspectRatio: false, 
       interaction: { mode: 'index', intersect: false },
       plugins: { 
-        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, color: '#94a3b8' } },
-        tooltip: {
-          backgroundColor: 'rgba(15, 17, 23, 0.9)',
-          titleColor: '#f1f5f9',
-          bodyColor: '#cbd5e1',
-          borderColor: '#3d4a63',
-          borderWidth: 1,
-          padding: 10,
-          callbacks: {
-            label: function(context) {
-              return context.dataset.label + ': ' + context.parsed.y.toFixed(1);
-            }
-          }
-        }
+        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, color: '#94a3b8' } }
       },
       scales: { 
         y: { beginAtZero: false, grid: { color: '#2d3548' }, ticks: { color: '#94a3b8' } },
