@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CE + PFA Capacity Arbitrage v31 (Cloud-Synced)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 20px; font-size: 13px; }
+  h1 { font-size: 17px; font-weight: 700; color: #f8fafc; margin-bottom: 4px; }
+  .subtitle { color: #94a3b8; font-size: 12px; margin-bottom: 16px; }
+
+  .month-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .month-btn { padding: 5px 11px; border-radius: 6px; border: 1px solid #2d3548; background: #1e2330; color: #94a3b8; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .month-btn.active { background: #312e81; border-color: #6366f1; color: #e0e7ff; font-weight: 600; }
+  
+  .action-btn { background: #3b82f6; border-color: #2563eb; color: #ffffff; font-weight: 600; cursor: pointer; padding: 8px 12px; border-radius: 6px; border-style: solid; border-width: 1px; transition: all 0.15s; }
+  .action-btn:hover { background: #2563eb; border-color: #1d4ed8; }
+  
+  .load-btn { padding: 6px 12px; margin: 0; background: #1e2330; border: 1px solid #2d3548; color: #cbd5e1; font-size: 12px; cursor: pointer; transition: all 0.15s; border-radius: 6px; font-weight: 600; }
+  .load-btn:hover { background: #312e81; border-color: #6366f1; color: #ffffff; }
+
+  .danger-btn { background: transparent; border: 1px solid #ef4444; color: #ef4444; font-weight: 600; cursor: pointer; padding: 8px 12px; border-radius: 6px; transition: all 0.15s; }
+  .danger-btn:hover { background: #ef4444; color: #ffffff; }
+  
+  .archive-btn { background: transparent; border: 1px solid #f59e0b; color: #f59e0b; font-weight: 600; cursor: pointer; padding: 4px 8px; font-size: 10px; border-radius: 4px; transition: all 0.15s; }
+  .archive-btn:hover { background: #f59e0b; color: #ffffff; }
+
+  .grid { display: grid; grid-template-columns: 380px 1fr; gap: 16px; }
+  .panel { background: #1e2330; border-radius: 10px; padding: 16px; border: 1px solid #2d3548; }
+  .panel h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 12px; }
+
+  .section-label { font-size: 11px; font-weight: 600; color: #7c8db0; text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 8px; border-top: 1px solid #2d3548; padding-top: 10px; }
+  .section-label:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+  
+  .input-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
+  .input-row label { color: #cbd5e1; font-size: 12px; flex: 1; line-height: 1.35; min-width: 120px; }
+  .input-row input[type=range]  { width: 84px; accent-color: #6366f1; }
+  .input-row input[type=number], .input-row input[type=text] { width: 60px; background: #0f1117; border: 1px solid #3d4a63; border-radius: 5px; color: #f1f5f9; padding: 4px; text-align: right; transition: border-color 0.2s; }
+  .input-row input[type=number]:focus, .input-row input[type=text]:focus { border-color: #6366f1; outline: none; }
+  .val-badge { min-width: 40px; text-align: right; font-size: 12px; color: #a5b4fc; font-weight: 600; }
+  .ro-val    { min-width: 60px; text-align: right; font-size: 12px; font-weight: 600; color: #f1f5f9; background: #0f1117; border: 1px solid #2d3548; border-radius: 5px; padding: 4px 7px; }
+  
+  .quota-row { display: flex; gap: 4px; align-items: center; justify-content: flex-end; }
+  .quota-row input { width: 38px; }
+  .load-badge { font-size: 10px; color: #64748b; font-weight: 600; margin-right: 6px; width: 40px; text-align: right; transition: color 0.2s; }
+  .load-badge.err { color: #ef4444; }
+
+  .results-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-card { background: #252c3f; border-radius: 8px; padding: 12px; border: 1px solid #2d3548; display: flex; flex-direction: column; justify-content: space-between; }
+  .stat-card.hl  { border-color: #6366f1; background: #1e1f3a; }
+  .stat-label { font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 4px; letter-spacing: 0.05em; }
+  .stat-value { font-size: 20px; font-weight: 700; color: #f1f5f9; }
+  .stat-sub { font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.3; }
+
+  .util-bar-bg { background: #0f1117; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; border: 1px solid #1a2030; }
+  .util-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .util-green { background: #22c55e; box-shadow: 0 0 5px rgba(34, 197, 94, 0.4); }
+  .util-yel { background: #f59e0b; }
+  .util-red { background: #ef4444; box-shadow: 0 0 5px rgba(239, 68, 68, 0.4); }
+
+  .target-banner { display:flex; align-items:center; justify-content:space-between; background:#1a1f30; border:1px solid #2d3548; border-radius:8px; padding:12px; margin-bottom:14px; }
+  .tb-item { flex: 1; text-align: center; }
+  .tb-label { font-size: 10px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+  .tb-val { font-size: 20px; font-weight: 700; }
+  .tb-sep { width:1px; height:36px; background:#2d3548; }
+
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 14px; }
+  .capacity-table { width:100%; border-collapse:collapse; font-size:12px; min-width: 500px; }
+  .capacity-table th { text-align:center; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:6px 4px; border-bottom:1px solid #2d3548; }
+  .capacity-table th:first-child { text-align: left; width: 90px; }
+  .capacity-table td { padding:8px 4px; border-bottom:1px solid #1a2030; color:#cbd5e1; text-align: center; vertical-align: middle; }
+  .capacity-table td:first-child { text-align: left; }
+  .capacity-table tr:last-child td { border-bottom:none; }
+  .capacity-table .em { color:#f1f5f9; font-weight:600; }
+  .capacity-table .g  { color:#22c55e; }
+  
+  .wk-input { width: 50px; background: #0f1117; border: 1px solid #3d4a63; border-radius: 4px; color: #a5b4fc; font-weight: 600; padding: 4px; text-align: center; font-size: 12px; transition: border-color 0.2s; margin: 0 auto; display: block; }
+  .wk-input:focus { border-color: #6366f1; outline: none; }
+
+  .weekly-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; }
+  .ws-green { background-color: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.6); }
+  .ws-red { background-color: #ef4444; box-shadow: 0 0 4px rgba(239,68,68,0.6); }
+
+  .funnel-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .funnel-row { display: flex; align-items: center; margin-bottom: 5px; gap: 8px; }
+  .funnel-lbl { width: 130px; font-size: 11px; color: #94a3b8; }
+  .funnel-bar-wrap { flex:1; background:#0f1117; height:18px; border-radius:3px; overflow:hidden; position:relative; }
+  .funnel-bar { height:100%; display:flex; align-items:center; padding-left:8px; transition: width 0.3s; }
+  .funnel-bar span { font-size:10px; font-weight:600; color:#fff; }
+  .bar-std { background: #6366f1; }
+  .bar-cap { background: #06b6d4; }
+  .bar-pfa { background: #10b981; }
+
+  .narrative-box { background: #1e2330; border-left: 4px solid #6366f1; padding: 14px; border-radius: 6px; margin-top: 14px; border: 1px solid #3d4a63; border-left-width: 4px; }
+  .narrative-box h3 { font-size: 11px; text-transform: uppercase; color: #a5b4fc; margin-bottom: 8px; }
+  .narrative-box p { font-size: 13px; line-height: 1.6; color: #cbd5e1; margin-bottom: 8px; }
+  .narrative-box p:last-child { margin-bottom: 0; }
+  .narrative-box strong { color: #f8fafc; }
+
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 17, 23, 0.85); z-index: 1000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: #1e2330; border: 1px solid #3d4a63; border-radius: 10px; width: 720px; max-width: 95%; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 90vh; display: flex; flex-direction: column; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #2d3548; padding-bottom: 12px; }
+  .modal-header h2 { font-size: 14px; font-weight: 700; color: #f8fafc; margin: 0; }
+  .modal-close { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; }
+  .modal-close:hover { color: #ef4444; }
+  .modal-body { overflow-y: auto; margin-bottom: 16px; flex: 1; }
+  .modal-table { width: 100%; border-collapse: collapse; min-width: 550px; }
+  .modal-table th { text-align: left; color: #64748b; font-size: 10px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #2d3548; }
+  .modal-table td { padding: 6px 8px; border-bottom: 1px solid #1a2030; }
+  .modal-table input { width: 60px; background: #0f1117; border: 1px solid #3d4a63; border-radius: 4px; color: #f1f5f9; padding: 4px; font-size: 12px; text-align: right; }
+  .modal-table input[type=text] { text-align: left; width: 75px; }
+  .modal-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #2d3548; padding-top: 12px; }
+
+  .archived-section { margin-top: 20px; border-top: 1px dashed #3d4a63; padding-top: 16px; }
+  .archived-section h3 { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-bottom: 10px; }
+  .archived-row { display: flex; align-items: center; justify-content: space-between; background: #161a24; padding: 8px 12px; border-radius: 4px; margin-bottom: 4px; border: 1px solid #2d3548; }
+  .archived-info { font-size: 12px; color: #cbd5e1; }
+  .archived-actions button { margin-left: 6px; }
+
+  .chart-container { height: 220px; margin-top: 10px; margin-bottom: 16px; width: 100%; position: relative; }
+
+  @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .results-grid { grid-template-columns: repeat(2, 1fr); }
+    .funnel-grid { grid-template-columns: 1fr; }
+    .target-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .tb-item { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+    .tb-sep { width: 100%; height: 1px; }
+  }
+  @media (max-width: 480px) { .results-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>CE + PFA Capacity Arbitrage v31</h1>
+<p class="subtitle">Full System Funnel: Phone Screen & Eval Capacity Alignment (Integrated Bypass Engine)</p>
+
+<div class="month-bar" id="month-bar-container">
+  </div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Inputs</h2>
+    
+    <div class="section-label">Scenario Presets</div>
+    <div class="input-row" style="margin-bottom: 16px; align-items: stretch;">
+      <select id="preset-select" style="flex: 1; min-width: 130px; background: #0f1117; color: #f1f5f9; border: 1px solid #3d4a63; border-radius: 6px; padding: 6px; font-size: 12px; outline: none;"></select>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <button class="action-btn" onclick="savePreset()" style="padding: 6px 12px;">Save</button>
+        <button class="load-btn" onclick="loadPreset()">Load</button>
+        <button class="danger-btn" onclick="deletePreset()" style="padding: 6px 12px;">Delete</button>
+      </div>
+    </div>
+
+    <div class="section-label">Volume & Forecasting</div>
+    <div class="input-row"><label>Accepted Apps (base)</label><input type="number" id="apps-base-input" onchange="syncToArrays()"></div>
+    <div class="input-row"><label>App Volume Bump (%)</label><input type="range" id="appGrowth" min="0" max="50" value="10"><span class="val-badge" id="appGrowth-v">10%</span></div>
+    <div class="input-row"><label>Enrollment Target</label><input type="number" id="enroll-target" onchange="syncToArrays()"></div>
+    
+    <div class="input-row" style="margin-top: 12px;"><label>Apps → PS Sched Rate %</label><input type="range" id="psSchedRate" min="50" max="100" value="95"><span class="val-badge" id="psSchedRate-v">95%</span></div>
+    <div class="input-row"><label>System Gross PS Demand</label><span class="ro-val" id="gross-ps-ro" style="color:#06b6d4;">—</span></div>
+
+    <div class="section-label">Staffing Engine (Team Comp)</div>
+    <div class="input-row"><label>Standard CEs Headcount</label><input type="number" id="stdCEs" value="13"></div>
+    <div class="input-row"><label>Lead CEs Headcount</label><input type="number" id="leadCEs" value="4"></div>
+    <div class="input-row"><label>PFA Headcount</label><input type="number" id="pfaHeadcount" value="5"></div>
+    
+    <div class="section-label">Clinical Scheduling Quotas</div>
+    <div class="input-row">
+      <label>Std CE Daily (PS/Ev)</label>
+      <div class="quota-row">
+        <span class="load-badge" id="std-load-badge">0.0h</span>
+        <input type="number" id="stdCePsQuota" value="4"><input type="number" id="stdCeEvalQuota" value="3">
+      </div>
+    </div>
+    <div class="input-row">
+      <label>Lead CE Daily (PS/Ev)</label>
+      <div class="quota-row">
+        <span class="load-badge" id="lead-load-badge">0.0h</span>
+        <input type="number" id="leadCePsQuota" value="3"><input type="number" id="leadCeEvalQuota" value="3">
+      </div>
+    </div>
+    <div class="input-row">
+      <label>PFA Daily PS Quota</label>
+      <div class="quota-row">
+        <span class="load-badge" id="pfa-load-badge">0.0h</span>
+        <input type="number" id="pfaDailyQuota" value="10">
+      </div>
+    </div>
+
+    <div class="section-label" style="color:#22c55e;">PFA Capacity Arbitrage</div>
+    <div class="input-row"><label>PSs Diverted to PFA %</label><input type="range" id="pfaPct" min="0" max="100" value="37"><span class="val-badge" id="pfaPct-v">37%</span></div>
+
+    <div class="section-label">Efficiency & Handle Time</div>
+    <div class="input-row"><label>PS Handle Time (mins)</label><input type="range" id="psAht" min="15" max="60" value="30" step="5"><span class="val-badge" id="psAht-v">30m</span></div>
+    <div class="input-row"><label>Eval Handle Time (mins)</label><input type="range" id="evalAht" min="30" max="120" value="60" step="5"><span class="val-badge" id="evalAht-v">60m</span></div>
+
+    <div class="section-label">Calendar & Exceptions</div>
+    <div class="input-row"><label>Working Days</label><input type="number" id="workingDays" onchange="syncToArrays()"></div>
+    <div class="input-row"><label>Known PTO Days (CEs)</label><input type="number" id="ptoDays" onchange="syncToArrays()"></div>
+    <div class="input-row"><label>Known PTO Days (PFAs)</label><input type="number" id="pfaPtoDays" onchange="syncToArrays()"></div>
+    
+    <button class="action-btn" style="width: 100%; justify-content: center; margin: 10px 0; font-size: 11px;" onclick="openSettingsModal()">📅 Manage Month Forecasts & Archive</button>
+
+    <div class="input-row"><label>CE Shrinkage (%)</label><input type="range" id="shrinkage" min="0" max="25" value="2"><span class="val-badge" id="shrinkage-v">2%</span></div>
+    <div class="input-row"><label>PFA Shrinkage (%)</label><input type="range" id="pfaShrinkage" min="0" max="25" value="5"><span class="val-badge" id="pfaShrinkage-v">5%</span></div>
+
+    <div class="section-label">Funnel Rates</div>
+    <div class="input-row"><label>PS Completion %</label><input type="range" id="psComp" value="74"><span class="val-badge" id="psComp-v">74%</span></div>
+    <div class="input-row"><label>Screen-In %</label><input type="range" id="siRate" value="86"><span class="val-badge" id="siRate-v">86%</span></div>
+    <div class="input-row"><label>Eval Sched %</label><input type="range" id="schedRate" value="78"><span class="val-badge" id="schedRate-v">78%</span></div>
+    <div class="input-row"><label>Eval Comp %</label><input type="range" id="evalComp" value="78"><span class="val-badge" id="evalComp-v">78%</span></div>
+    <div class="input-row"><label>Enroll %</label><input type="range" id="enrollRate" value="80"><span class="val-badge" id="enrollRate-v">80%</span></div>
+  </div>
+
+  <div class="right-col">
+    <div class="panel">
+      <h2>Executive Staffing & Utilization</h2>
+      <p style="font-size:10px; color:#64748b; margin-bottom:12px; line-height:1.4;">
+        <strong>Methodology:</strong> "Ideal Need" assumes CEs can flexibly share 100% of their total clinical time. "Strict Need" calculates the absolute number of bodies required to clear the bottleneck based purely on rigid daily quotas (The Suitcase Paradox).
+      </p>
+      <div class="results-grid" id="metrics-output"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Enrollment Target Assurance</h2>
+      <div class="target-banner" id="target-banner"></div>
+      
+      <h2>Headcount Forecast Tracker</h2>
+      <div class="chart-container"><canvas id="headcountChart"></canvas></div>
+
+      <h2>Weekly Run Rate vs. Manual Targets <span style="font-size:10px;color:#64748b;font-weight:400;">· Enter custom targets to track pacing</span></h2>
+      <div class="table-responsive">
+        <table class="capacity-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>PS Sched</th>
+              <th>PS Comp</th>
+              <th>Eval Sched</th>
+              <th>Eval Comp</th>
+              <th>Enrolled</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Wk Target</strong></td>
+              <td><input type="number" class="wk-input" id="wt-psSched" placeholder="0"></td>
+              <td><input type="number" class="wk-input" id="wt-psComp" placeholder="0"></td>
+              <td><input type="number" class="wk-input" id="wt-evSched" placeholder="0"></td>
+              <td><input type="number" class="wk-input" id="wt-evComp" placeholder="0"></td>
+              <td><input type="number" class="wk-input" id="wt-enr" placeholder="0"></td>
+            </tr>
+            <tr>
+              <td><strong>System Demand</strong></td>
+              <td id="wd-psSched"></td>
+              <td id="wd-psComp"></td>
+              <td id="wd-evSched"></td>
+              <td id="wd-evComp"></td>
+              <td id="wd-enr"></td>
+            </tr>
+            <tr>
+              <td><strong>Max Capacity</strong></td>
+              <td class="em g" id="wc-psSched"></td>
+              <td class="em g" id="wc-psComp"></td>
+              <td class="em g" id="wc-evSched"></td>
+              <td class="em g" id="wc-evComp"></td>
+              <td class="em g" id="wc-enr"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Funnel Breakdown</h2>
+      <div class="funnel-grid">
+        <div><div class="funnel-title">System Demand</div><div id="demand-bars"></div></div>
+        <div><div class="funnel-title">System Capacity</div><div id="capacity-bars"></div></div>
+      </div>
+      <div class="narrative-box" id="narrative-output"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ptoModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>📅 Dynamic Month Manager & Archive</h2>
+      <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-responsive">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>Active Month</th>
+              <th>Base Apps</th>
+              <th>Target Enroll</th>
+              <th>Work Days</th>
+              <th>CE PTO</th>
+              <th>PFA PTO</th>
+              <th style="width:50px;"></th>
+            </tr>
+          </thead>
+          <tbody id="modal-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="archived-section" id="archive-container" style="display:none;">
+        <h3>Archived Months (Max 12)</h3>
+        <div id="archive-list"></div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <div>
+        <button class="action-btn" onclick="addMonthRow()" style="background:#1e3a5f; border-color:#3b82f6;">+ Add Month</button>
+        <button class="danger-btn" onclick="restoreDefaults()" style="margin-left: 10px;">Restore Defaults</button>
+      </div>
+      <button class="action-btn" onclick="saveSettingsModal()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── FIREBASE CONFIGURATION & INIT ──
+const firebaseConfig = {
+  apiKey: "AIzaSyBU1tPMTjYtRSbmlttGfLKebl7gnwLzgBw",
+  authDomain: "ce-wfm-suite.firebaseapp.com",
+  databaseURL: "https://ce-wfm-suite-default-rtdb.firebaseio.com",
+  projectId: "ce-wfm-suite",
+  storageBucket: "ce-wfm-suite.firebasestorage.app",
+  messagingSenderId: "590100182080",
+  appId: "1:590100182080:web:b52ae564a6aa4377709ba5"
+};
+
+let firebaseInitialized = false;
+const DB_PATH = '/pfa_arbitrage_forecast';
+
+function initFirebaseSync() {
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  firebaseInitialized = true;
+  const db = firebase.database();
+  
+  // OPTIMISTIC SYNC: Check cloud for the absolute source of truth
+  db.ref(DB_PATH).once('value').then(snap => {
+    if(snap.exists()) {
+      const data = snap.val();
+      
+      // Fallbacks required because Firebase silently drops empty arrays
+      MONTHS = data.MONTHS || [...DEFAULT_MONTHS];
+      PROJ_APPS_BASE = data.PROJ_APPS_BASE || [...DEFAULT_APPS];
+      ENROLL_TGTS = data.ENROLL_TGTS || [...DEFAULT_TGTS];
+      WORKING_DAYS = data.WORKING_DAYS || [...DEFAULT_WD];
+      PTO_DAYS = data.PTO_DAYS || [...DEFAULT_CE_PTO];
+      PFA_PTO_DAYS = data.PFA_PTO_DAYS || [...DEFAULT_PFA_PTO];
+      WK_TGTS = data.WK_TGTS || Array.from({length: 8}, () => ({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''}));
+      ARCHIVE_DATA = data.ARCHIVE_DATA || [];
+      PRESETS = data.PRESETS || {};
+
+      // Instantly overwrite browser localStorage so the next refresh is flawless
+      localStorage.setItem('ce_months', JSON.stringify(MONTHS));
+      localStorage.setItem('ce_apps_base', JSON.stringify(PROJ_APPS_BASE));
+      localStorage.setItem('ce_enroll_tgts', JSON.stringify(ENROLL_TGTS));
+      localStorage.setItem('ce_working_days', JSON.stringify(WORKING_DAYS));
+      localStorage.setItem('ce_pto_days', JSON.stringify(PTO_DAYS));
+      localStorage.setItem('ce_pfa_pto_days', JSON.stringify(PFA_PTO_DAYS));
+      localStorage.setItem('ce_wk_tgts', JSON.stringify(WK_TGTS));
+      localStorage.setItem('ce_archive_data', JSON.stringify(ARCHIVE_DATA));
+      localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
+
+      // Soft refresh UI
+      updatePresetDropdown();
+      renderMonthBar();
+      if (selMonth >= MONTHS.length) selMonth = Math.max(0, MONTHS.length - 1);
+      setMonth(selMonth);
+      
+      console.log("🔥 Firebase sync complete: UI updated with live cloud data.");
+    } else {
+      // Cloud is completely empty. Seed it with our browser's local memory.
+      console.log("🔥 Firebase empty: Seeding cloud with local storage data...");
+      pushToFirebase();
+    }
+  }).catch(err => console.error("Firebase sync error:", err));
+}
+
+function pushToFirebase() {
+  if (!firebaseInitialized) return;
+  const payload = {
+    MONTHS, PROJ_APPS_BASE, ENROLL_TGTS, WORKING_DAYS, PTO_DAYS, PFA_PTO_DAYS, WK_TGTS, ARCHIVE_DATA, PRESETS
+  };
+  firebase.database().ref(DB_PATH).set(payload);
+}
+
+// ── DEFAULTS & DYNAMIC STORAGE ──
+const DEFAULT_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DEFAULT_APPS = [1367, 1036, 1039, 1108, 1340, 1425, 1367, 1322];
+const DEFAULT_TGTS = [528, 348, 349, 370, 403, 466, 528, 529];
+const DEFAULT_WD = [18, 21, 21, 21, 21, 21, 18, 22];
+const DEFAULT_CE_PTO = [20, 0, 0, 0, 0, 0, 0, 0];
+const DEFAULT_PFA_PTO = [0, 0, 0, 0, 0, 0, 0, 0];
+const DEFAULT_WK_TGTS = Array.from({length: 8}, () => ({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''}));
+
+const WEEKS_PER_MONTH = 4.33; 
+
+// Initial optimistic load from Local Storage
+let MONTHS = JSON.parse(localStorage.getItem('ce_months')) || [...DEFAULT_MONTHS];
+let PROJ_APPS_BASE = JSON.parse(localStorage.getItem('ce_apps_base')) || [...DEFAULT_APPS];
+let ENROLL_TGTS = JSON.parse(localStorage.getItem('ce_enroll_tgts')) || [...DEFAULT_TGTS];
+let WORKING_DAYS = JSON.parse(localStorage.getItem('ce_working_days')) || [...DEFAULT_WD];
+let PTO_DAYS = JSON.parse(localStorage.getItem('ce_pto_days')) || [...DEFAULT_CE_PTO];
+let PFA_PTO_DAYS = JSON.parse(localStorage.getItem('ce_pfa_pto_days')) || [...DEFAULT_PFA_PTO];
+let WK_TGTS = JSON.parse(localStorage.getItem('ce_wk_tgts')) || DEFAULT_WK_TGTS;
+let ARCHIVE_DATA = JSON.parse(localStorage.getItem('ce_archive_data')) || [];
+let PRESETS = JSON.parse(localStorage.getItem('ce_presets')) || {};
+
+let selMonth = 0; let chart = null;
+
+// ── UTILITIES ──
+const rv = id => parseFloat(document.getElementById(id).value) || 0;
+const fmt = n => Math.round(n).toLocaleString();
+
+// ── PRESET LOGIC ──
+function updatePresetDropdown() {
+  const sel = document.getElementById('preset-select');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">-- Select Scenario Preset --</option>';
+  Object.keys(PRESETS).forEach(name => {
+    sel.innerHTML += `<option value="${name}">${name}</option>`;
+  });
+}
+
+function savePreset() {
+  const name = prompt("Enter a name for this Scenario Preset:");
+  if (!name) return;
+  
+  const presetData = {
+    savedMonth: parseInt(selMonth, 10), 
+    inputs: {},
+    arrays: {
+      MONTHS: [...MONTHS],
+      PROJ_APPS_BASE: [...PROJ_APPS_BASE],
+      ENROLL_TGTS: [...ENROLL_TGTS],
+      WORKING_DAYS: [...WORKING_DAYS],
+      PTO_DAYS: [...PTO_DAYS],
+      PFA_PTO_DAYS: [...PFA_PTO_DAYS],
+      WK_TGTS: JSON.parse(JSON.stringify(WK_TGTS))
+    }
+  };
+  
+  // Scrape all slider inputs dynamically
+  ['appGrowth', 'psSchedRate', 'stdCEs', 'leadCEs', 'pfaHeadcount', 'stdCePsQuota', 'stdCeEvalQuota', 'leadCePsQuota', 'leadCeEvalQuota', 'pfaDailyQuota', 'psAht', 'evalAht', 'shrinkage', 'pfaShrinkage', 'pfaPct', 'psComp', 'siRate', 'schedRate', 'evalComp', 'enrollRate'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) presetData.inputs[id] = el.value;
+  });
+  
+  PRESETS[name] = presetData;
+  localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
+  updatePresetDropdown();
+  document.getElementById('preset-select').value = name;
+  pushToFirebase(); // Sync to cloud
+}
+
+function loadPreset() {
+  const sel = document.getElementById('preset-select');
+  if(!sel || !sel.value) return;
+  const data = PRESETS[sel.value];
+  if(!data) return;
+  
+  if (data.inputs) {
+    Object.keys(data.inputs).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = data.inputs[id];
+    });
+  }
+  
+  if (data.arrays) {
+    MONTHS = data.arrays.MONTHS ? [...data.arrays.MONTHS] : [...DEFAULT_MONTHS];
+    PROJ_APPS_BASE = [...data.arrays.PROJ_APPS_BASE];
+    ENROLL_TGTS = [...data.arrays.ENROLL_TGTS];
+    WORKING_DAYS = [...data.arrays.WORKING_DAYS];
+    PTO_DAYS = [...data.arrays.PTO_DAYS];
+    PFA_PTO_DAYS = [...data.arrays.PFA_PTO_DAYS];
+    if(data.arrays.WK_TGTS) WK_TGTS = JSON.parse(JSON.stringify(data.arrays.WK_TGTS));
+    saveDataToLocal(); // Handles local + firebase sync
+  }
+  
+  renderMonthBar();
+  const targetMonth = data.savedMonth !== undefined ? parseInt(data.savedMonth, 10) : 0;
+  setMonth(targetMonth < MONTHS.length ? targetMonth : 0); 
+}
+
+function deletePreset() {
+  const sel = document.getElementById('preset-select');
+  if(!sel || !sel.value) return;
+  if(confirm(`Are you sure you want to delete preset "${sel.value}"?`)) {
+    delete PRESETS[sel.value];
+    localStorage.setItem('ce_presets', JSON.stringify(PRESETS));
+    updatePresetDropdown();
+    pushToFirebase(); // Sync to cloud
+  }
+}
+
+// ── DYNAMIC UI RENDERING ──
+function renderMonthBar() {
+  const container = document.getElementById('month-bar-container');
+  container.innerHTML = '<span class="month-bar-label">Month:</span>';
+  MONTHS.forEach((m, i) => {
+    container.innerHTML += `<button class="month-btn" onclick="setMonth(${i})">${m}</button>`;
+  });
+}
+
+function syncModalToMemory() {
+  for (let i = 0; i < MONTHS.length; i++) {
+    const moEl = document.getElementById(`mod-mo-${i}`);
+    if (moEl) {
+      MONTHS[i] = moEl.value || `Month ${i+1}`;
+      PROJ_APPS_BASE[i] = parseInt(document.getElementById(`mod-apps-${i}`).value) || 0;
+      ENROLL_TGTS[i] = parseInt(document.getElementById(`mod-tgt-${i}`).value) || 0;
+      WORKING_DAYS[i] = parseFloat(document.getElementById(`mod-wd-${i}`).value) || 0;
+      PTO_DAYS[i] = parseFloat(document.getElementById(`mod-pto-${i}`).value) || 0;
+      PFA_PTO_DAYS[i] = parseFloat(document.getElementById(`mod-pfapto-${i}`).value) || 0;
+    }
+  }
+}
+
+function renderModalTables() {
+  const tbody = document.getElementById('modal-table-body');
+  let html = '';
+  for (let i = 0; i < MONTHS.length; i++) {
+    html += `<tr>
+      <td><input type="text" id="mod-mo-${i}" value="${MONTHS[i]}"></td>
+      <td><input type="number" id="mod-apps-${i}" value="${PROJ_APPS_BASE[i]}"></td>
+      <td><input type="number" id="mod-tgt-${i}" value="${ENROLL_TGTS[i]}"></td>
+      <td><input type="number" id="mod-wd-${i}" value="${WORKING_DAYS[i]}"></td>
+      <td><input type="number" id="mod-pto-${i}" value="${PTO_DAYS[i]}"></td>
+      <td><input type="number" id="mod-pfapto-${i}" value="${PFA_PTO_DAYS[i]}"></td>
+      <td><button class="archive-btn" title="Archive this month" onclick="archiveMonthRow(${i})">Archive</button></td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+
+  const archContainer = document.getElementById('archive-container');
+  const archList = document.getElementById('archive-list');
+  if (ARCHIVE_DATA.length > 0) {
+    archContainer.style.display = 'block';
+    let archHtml = '';
+    ARCHIVE_DATA.forEach((item, i) => {
+      archHtml += `
+        <div class="archived-row">
+          <div class="archived-info"><strong>${item.label}</strong> · Apps: ${item.apps} · Target: ${item.tgt}</div>
+          <div class="archived-actions">
+            <button class="load-btn" onclick="restoreArchiveRow(${i})">Restore</button>
+            <button class="danger-btn" style="padding: 4px 8px; font-size: 11px;" onclick="deleteArchiveRow(${i})">Delete</button>
+          </div>
+        </div>`;
+    });
+    archList.innerHTML = archHtml;
+  } else {
+    archContainer.style.display = 'none';
+  }
+}
+
+function openSettingsModal() {
+  renderModalTables();
+  document.getElementById('ptoModal').classList.add('open');
+}
+
+function closeSettingsModal() { document.getElementById('ptoModal').classList.remove('open'); }
+
+function addMonthRow() {
+  syncModalToMemory();
+  MONTHS.push("New");
+  PROJ_APPS_BASE.push(1000);
+  ENROLL_TGTS.push(500);
+  WORKING_DAYS.push(20);
+  PTO_DAYS.push(0);
+  PFA_PTO_DAYS.push(0);
+  WK_TGTS.push({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''});
+  renderModalTables();
+}
+
+function archiveMonthRow(i) {
+  if (MONTHS.length <= 1) return alert("You must have at least one active month on the dashboard.");
+  syncModalToMemory();
+  
+  const archivedItem = {
+    label: MONTHS[i], apps: PROJ_APPS_BASE[i], tgt: ENROLL_TGTS[i],
+    wd: WORKING_DAYS[i], cePto: PTO_DAYS[i], pfaPto: PFA_PTO_DAYS[i], wkTgts: WK_TGTS[i]
+  };
+  
+  ARCHIVE_DATA.unshift(archivedItem);
+  if (ARCHIVE_DATA.length > 12) ARCHIVE_DATA.pop(); 
+  
+  MONTHS.splice(i, 1);
+  PROJ_APPS_BASE.splice(i, 1);
+  ENROLL_TGTS.splice(i, 1);
+  WORKING_DAYS.splice(i, 1);
+  PTO_DAYS.splice(i, 1);
+  PFA_PTO_DAYS.splice(i, 1);
+  WK_TGTS.splice(i, 1);
+  
+  if (selMonth >= MONTHS.length) selMonth = MONTHS.length - 1;
+  saveDataToLocal();
+  renderModalTables();
+}
+
+function restoreArchiveRow(i) {
+  syncModalToMemory();
+  const item = ARCHIVE_DATA.splice(i, 1)[0];
+  
+  MONTHS.push(item.label);
+  PROJ_APPS_BASE.push(item.apps);
+  ENROLL_TGTS.push(item.tgt);
+  WORKING_DAYS.push(item.wd);
+  PTO_DAYS.push(item.cePto);
+  PFA_PTO_DAYS.push(item.pfaPto);
+  WK_TGTS.push(item.wkTgts || {psSched: '', psComp: '', evSched: '', evComp: '', enr: ''});
+  
+  saveDataToLocal();
+  renderModalTables();
+}
+
+function deleteArchiveRow(i) {
+  if(confirm("Permanently delete this archived month?")) {
+    ARCHIVE_DATA.splice(i, 1);
+    saveDataToLocal();
+    renderModalTables();
+  }
+}
+
+function saveDataToLocal() {
+  localStorage.setItem('ce_months', JSON.stringify(MONTHS));
+  localStorage.setItem('ce_apps_base', JSON.stringify(PROJ_APPS_BASE));
+  localStorage.setItem('ce_enroll_tgts', JSON.stringify(ENROLL_TGTS));
+  localStorage.setItem('ce_working_days', JSON.stringify(WORKING_DAYS));
+  localStorage.setItem('ce_pto_days', JSON.stringify(PTO_DAYS));
+  localStorage.setItem('ce_pfa_pto_days', JSON.stringify(PFA_PTO_DAYS));
+  localStorage.setItem('ce_wk_tgts', JSON.stringify(WK_TGTS));
+  localStorage.setItem('ce_archive_data', JSON.stringify(ARCHIVE_DATA));
+  pushToFirebase(); // Sync everything cleanly to the cloud
+}
+
+function saveSettingsModal() {
+  syncModalToMemory();
+  saveDataToLocal();
+  renderMonthBar();
+  setMonth(selMonth);
+  closeSettingsModal();
+}
+
+function restoreDefaults() { 
+  if(confirm("Restore factory defaults? This will clear your custom months and archive vault.")) { 
+    MONTHS=[...DEFAULT_MONTHS]; PROJ_APPS_BASE=[...DEFAULT_APPS]; ENROLL_TGTS=[...DEFAULT_TGTS]; WORKING_DAYS=[...DEFAULT_WD]; PTO_DAYS=[...DEFAULT_CE_PTO]; PFA_PTO_DAYS=[...DEFAULT_PFA_PTO];
+    WK_TGTS = Array.from({length: 8}, () => ({psSched: '', psComp: '', evSched: '', evComp: '', enr: ''}));
+    ARCHIVE_DATA = [];
+    saveDataToLocal();
+    renderModalTables();
+  } 
+}
+
+function syncToArrays() {
+  PROJ_APPS_BASE[selMonth] = rv('apps-base-input');
+  ENROLL_TGTS[selMonth] = rv('enroll-target');
+  WORKING_DAYS[selMonth] = rv('workingDays');
+  PTO_DAYS[selMonth] = rv('ptoDays');
+  PFA_PTO_DAYS[selMonth] = rv('pfaPtoDays');
+  saveDataToLocal();
+  sync();
+}
+
+// ── APP LOGIC ──
+function setMonth(i) { 
+  selMonth = i; 
+  document.querySelectorAll('.month-bar .month-btn').forEach((b, idx) => b.classList.toggle('active', idx === i)); 
+  
+  document.getElementById('apps-base-input').value = PROJ_APPS_BASE[i]; 
+  document.getElementById('enroll-target').value = ENROLL_TGTS[i]; 
+  document.getElementById('workingDays').value = WORKING_DAYS[i]; 
+  document.getElementById('ptoDays').value = PTO_DAYS[i]; 
+  document.getElementById('pfaPtoDays').value = PFA_PTO_DAYS[i];
+
+  document.getElementById('wt-psSched').value = WK_TGTS[i].psSched;
+  document.getElementById('wt-psComp').value = WK_TGTS[i].psComp;
+  document.getElementById('wt-evSched').value = WK_TGTS[i].evSched;
+  document.getElementById('wt-evComp').value = WK_TGTS[i].evComp;
+  document.getElementById('wt-enr').value = WK_TGTS[i].enr;
+
+  sync(); 
+}
+
+document.querySelectorAll('.wk-input').forEach(inp => {
+  inp.addEventListener('input', (e) => {
+    WK_TGTS[selMonth][e.target.id.replace('wt-', '')] = e.target.value;
+    localStorage.setItem('ce_wk_tgts', JSON.stringify(WK_TGTS));
+    pushToFirebase(); // Sync minor table tweaks to cloud
+    sync(); 
+  });
+});
+
+function calculateMetrics(mIdx) {
+  try {
+    const baseApps = PROJ_APPS_BASE[mIdx] || 1000;
+    const tgt = ENROLL_TGTS[mIdx] || 0;
+    const wd = WORKING_DAYS[mIdx] || 20;
+    const cePto = PTO_DAYS[mIdx] || 0;
+    const pfaPto = PFA_PTO_DAYS[mIdx] || 0;
+    
+    const ceShrink = 1 - (rv('shrinkage') / 100);
+    const pfaShrink = 1 - (rv('pfaShrinkage') / 100);
+
+    const apps = baseApps * (1 + (rv('appGrowth')/100));
+    const psSchedRate = rv('psSchedRate') / 100;
+    
+    const pfaApps = apps * (rv('pfaPct')/100);
+    const stdApps = apps - pfaApps;
+
+    const cePsDemand = stdApps * psSchedRate;
+    const pfaPsDemand = pfaApps * psSchedRate; 
+    const systemPsDemand = cePsDemand + pfaPsDemand;
+
+    const psToEvalConv = (rv('psComp')/100) * (rv('siRate')/100) * (rv('schedRate')/100);
+    const pfaBypassConv = 0.55; 
+    const ceEvalDemand = (cePsDemand * psToEvalConv) + (pfaApps * pfaBypassConv);
+
+    const stdCEs = rv('stdCEs');
+    const leadCEs = rv('leadCEs');
+    const totalCEs = stdCEs + leadCEs || 1;
+    const netCeWd = Math.max(0, wd - (cePto / totalCEs));
+    
+    const cePsCap = ((stdCEs * rv('stdCePsQuota')) + (leadCEs * rv('leadCePsQuota'))) * netCeWd * ceShrink;
+    const ceEvCap = ((stdCEs * rv('stdCeEvalQuota')) + (leadCEs * rv('leadCeEvalQuota'))) * netCeWd * ceShrink;
+    
+    const ceMinReq = (cePsDemand * rv('psAht')) + (ceEvalDemand * rv('evalAht'));
+    const ceDailyProdMins = (rv('stdCePsQuota') * rv('psAht')) + (rv('stdCeEvalQuota') * rv('evalAht'));
+    const monthlyMinsPerCE = ceDailyProdMins * netCeWd * ceShrink;
+    const reqCEs = monthlyMinsPerCE > 0 ? ceMinReq / monthlyMinsPerCE : 0;
+
+    const avgPsQuota = ((stdCEs * rv('stdCePsQuota')) + (leadCEs * rv('leadCePsQuota'))) / totalCEs;
+    const avgEvQuota = ((stdCEs * rv('stdCeEvalQuota')) + (leadCEs * rv('leadCeEvalQuota'))) / totalCEs;
+    const avgMonthlyPsCap = avgPsQuota * netCeWd * ceShrink;
+    const avgMonthlyEvCap = avgEvQuota * netCeWd * ceShrink;
+    
+    const strictReqForPs = avgMonthlyPsCap > 0 ? cePsDemand / avgMonthlyPsCap : 0;
+    const strictReqForEv = avgMonthlyEvCap > 0 ? ceEvalDemand / avgMonthlyEvCap : 0;
+    const reqCEsStrict = Math.max(strictReqForPs, strictReqForEv);
+
+    const pfaHead = rv('pfaHeadcount');
+    const pfaNetWd = Math.max(0, wd - (pfaHead > 0 ? pfaPto / pfaHead : 0)); 
+    const pfaDailyQuota = rv('pfaDailyQuota') || 1;
+    
+    const pfaPsCap = pfaHead * pfaDailyQuota * pfaNetWd * pfaShrink;
+    const systemPsCap = cePsCap + pfaPsCap;
+
+    const reqPFAs = (pfaDailyQuota * pfaNetWd * pfaShrink) > 0 ? pfaPsDemand / (pfaDailyQuota * pfaNetWd * pfaShrink) : 0;
+
+    const evalComp = rv('evalComp')/100;
+    const enrollRate = rv('enrollRate')/100;
+    
+    const ceEvalsFed = Math.min(cePsDemand, cePsCap) * psToEvalConv;
+    const pfaProcessedRatio = pfaPsDemand > 0 ? Math.min(1, pfaPsCap / pfaPsDemand) : 1;
+    const pfaEvalsFed = (pfaApps * pfaProcessedRatio) * pfaBypassConv;
+    const totalEvalsFed = ceEvalsFed + pfaEvalsFed;
+    
+    const achievableEvals = Math.min(totalEvalsFed, ceEvCap);
+    const trueMaxYield = achievableEvals * evalComp * enrollRate;
+
+    const actualEnrolled = ceEvalDemand * evalComp * enrollRate;
+    const actualPsComp = systemPsDemand * (rv('psComp')/100);
+    const actualEvComp = ceEvalDemand * evalComp;
+
+    return { 
+      apps, systemPsDemand, pfaPsDemand, ceEvalDemand, cePsCap, ceEvCap, 
+      pfaPsCap, systemPsCap, reqCEs, reqCEsStrict, reqPFAs, pfaApps, 
+      maxYield: trueMaxYield, 
+      actualEnrolled, actualPsComp, actualEvComp, tgt, totalEvalsFed 
+    };
+  } catch (e) {
+    console.error(e); return { reqCEs: 0, reqCEsStrict: 0, systemPsDemand: 0, ceEvalDemand: 0 };
+  }
+}
+
+function updateWkRow(id, dem, cap) {
+  const tgtVal = parseFloat(document.getElementById('wt-' + id).value) || 0;
+  const demGap = dem - tgtVal;
+  const isDemMet = demGap >= 0;
+  const badge = `<span class="weekly-status ${isDemMet ? 'ws-green' : 'ws-red'}"></span>`;
+  
+  document.getElementById('wd-' + id).innerHTML = `<div style="display:flex; justify-content:center; align-items:center;">${badge}${fmt(dem)}</div><div style="font-size:10px; color:#64748b; margin-top:2px;">(${isDemMet?'+':''}${fmt(demGap)})</div>`;
+  document.getElementById('wc-' + id).textContent = fmt(cap);
+}
+
+function sync() {
+  const m = calculateMetrics(selMonth);
+
+  const psAht = rv('psAht');
+  const evAht = rv('evalAht');
+  
+  ['appGrowth', 'psAht', 'evalAht', 'pfaPct', 'psSchedRate', 'shrinkage', 'pfaShrinkage', 'psComp', 'siRate', 'schedRate', 'evalComp', 'enrollRate'].forEach(id => {
+    const el = document.getElementById(id + '-v');
+    if (el) el.textContent = (id.includes('Aht') ? rv(id) + 'm' : (id==='appGrowth' ? '+' : '') + rv(id) + '%');
+  });
+  document.getElementById('gross-ps-ro').textContent = fmt(m.apps * (rv('psSchedRate')/100));
+
+  const stdHrs = ((rv('stdCePsQuota') * psAht) + (rv('stdCeEvalQuota') * evAht)) / 60;
+  const leadHrs = ((rv('leadCePsQuota') * psAht) + (rv('leadCeEvalQuota') * evAht)) / 60;
+  const pfaHrs = (rv('pfaDailyQuota') * psAht) / 60;
+
+  const stdBadge = document.getElementById('std-load-badge');
+  stdBadge.textContent = stdHrs.toFixed(1) + 'h';
+  stdBadge.className = stdHrs > 8 ? 'load-badge err' : 'load-badge';
+
+  const leadBadge = document.getElementById('lead-load-badge');
+  leadBadge.textContent = leadHrs.toFixed(1) + 'h';
+  leadBadge.className = leadHrs > 8 ? 'load-badge err' : 'load-badge';
+
+  const pfaBadge = document.getElementById('pfa-load-badge');
+  pfaBadge.textContent = pfaHrs.toFixed(1) + 'h';
+  pfaBadge.className = pfaHrs > 8 ? 'load-badge err' : 'load-badge';
+
+  const sysPsUtil = m.systemPsCap > 0 ? (m.systemPsDemand / m.systemPsCap) * 100 : 0;
+  const psHeadroom = m.systemPsCap - m.systemPsDemand;
+  const psHeadStr = psHeadroom >= 0 ? `<span style="color:#22c55e;">+${fmt(psHeadroom)} headroom</span>` : `<span style="color:#ef4444;">${fmt(Math.abs(psHeadroom))} shortfall</span>`;
+  
+  const evUtil = m.ceEvCap > 0 ? (m.ceEvalDemand / m.ceEvCap) * 100 : 0;
+  const evHeadroom = m.ceEvCap - m.ceEvalDemand;
+  const evHeadStr = evHeadroom >= 0 ? `<span style="color:#22c55e;">+${fmt(evHeadroom)} headroom</span>` : `<span style="color:#ef4444;">${fmt(Math.abs(evHeadroom))} shortfall</span>`;
+
+  const curCEs = rv('stdCEs') + rv('leadCEs');
+  const ceDeficit = m.reqCEs - curCEs;
+  const ceStaffStr = ceDeficit > 0.5 ? `<span style="color:#ef4444;">+${ceDeficit.toFixed(1)} Ideal Deficit</span>` : `<span style="color:#22c55e;">Fully Staffed</span>`;
+
+  const curPFAs = rv('pfaHeadcount');
+  const pfaDeficit = m.reqPFAs - curPFAs;
+  const pfaStaffStr = pfaDeficit > 0.5 ? `<span style="color:#ef4444;">+${pfaDeficit.toFixed(1)} needed</span>` : `<span style="color:#22c55e;">Fully Staffed</span>`;
+
+  document.getElementById('metrics-output').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">PS Utilization</div>
+      <div class="stat-value">${Math.round(sysPsUtil)}%</div>
+      <div class="util-bar-bg"><div class="util-bar-fill ${sysPsUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, sysPsUtil)}%"></div></div>
+      <div class="stat-sub">CE Cap: ${fmt(m.cePsCap)} · PFA Cap: ${fmt(m.pfaPsCap)} · ${psHeadStr}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Eval Utilization</div>
+      <div class="stat-value">${Math.round(evUtil)}%</div>
+      <div class="util-bar-bg"><div class="util-bar-fill ${evUtil > 100 ? 'util-red' : 'util-green'}" style="width:${Math.min(100, evUtil)}%"></div></div>
+      <div class="stat-sub">CE Eval Cap: ${fmt(m.ceEvCap)} · ${evHeadStr}</div>
+    </div>
+    <div class="stat-card hl">
+      <div class="stat-label">Req. CEs (Ideal vs Strict)</div>
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <div class="stat-value" style="color:#f59e0b;">${m.reqCEs.toFixed(1)}</div>
+        <div style="color:#64748b; font-size:14px; font-weight:600;">/</div>
+        <div class="stat-value" style="color:#ef4444;">${m.reqCEsStrict.toFixed(1)}</div>
+      </div>
+      <div class="stat-sub">
+        Current: ${curCEs} · ${ceStaffStr}
+      </div>
+    </div>
+    <div class="stat-card hl" style="border-color:#10b981; background:#0f2a1a;">
+      <div class="stat-label" style="color:#86efac;">Required PFA Headcount</div>
+      <div class="stat-value">${m.reqPFAs.toFixed(1)}</div>
+      <div class="stat-sub" style="color:#86efac;">
+        Current: ${curPFAs} · Cap: ${fmt(m.pfaPsCap)} PSs · ${pfaStaffStr}
+      </div>
+    </div>
+  `;
+
+  const yieldRatio = m.actualEnrolled > 0 ? (m.tgt / m.actualEnrolled) : 0;
+
+  document.getElementById('target-banner').innerHTML = `
+    <div class="tb-item"><div class="tb-label">Enroll Target</div><div class="tb-val">${fmt(m.tgt)}</div></div>
+    <div class="tb-sep"></div>
+    <div class="tb-item"><div class="tb-label">Target Evals Needed</div><div class="tb-val" style="color:#a5b4fc">${fmt(m.actualEvComp * yieldRatio)}</div></div>
+    <div class="tb-sep"></div>
+    <div class="tb-item"><div class="tb-label">Max Cap Yield</div><div class="tb-val" style="color:#a5b4fc">${fmt(m.maxYield)}</div></div>
+    <div class="tb-sep"></div>
+    <div class="tb-item"><div class="tb-label">Variance</div><div class="tb-val" style="color:${m.maxYield>=m.tgt?'#22c55e':'#ef4444'}">${m.maxYield>=m.tgt?'+':''}${fmt(m.maxYield-m.tgt)}</div></div>
+  `;
+
+  updateWkRow('psSched', m.systemPsDemand / WEEKS_PER_MONTH, m.systemPsCap / WEEKS_PER_MONTH);
+  updateWkRow('psComp', m.actualPsComp / WEEKS_PER_MONTH, (m.systemPsCap * (rv('psComp')/100)) / WEEKS_PER_MONTH);
+  updateWkRow('evSched', m.ceEvalDemand / WEEKS_PER_MONTH, m.ceEvCap / WEEKS_PER_MONTH);
+  updateWkRow('evComp', m.actualEvComp / WEEKS_PER_MONTH, (m.ceEvCap * (rv('evalComp')/100)) / WEEKS_PER_MONTH);
+  updateWkRow('enr', m.actualEnrolled / WEEKS_PER_MONTH, m.maxYield / WEEKS_PER_MONTH);
+
+  let narrative = `<h3>Monthly Executive Insight</h3>`;
+
+  narrative += `<p><strong>1. Target & Bottleneck Analysis:</strong> Our end-to-end capacity yield is <strong>${fmt(m.maxYield)} enrollments</strong> against a target of ${fmt(m.tgt)}. `;
+  if (m.maxYield >= m.tgt) {
+    narrative += `<span style="color:#22c55e;">This indicates our funnel is fully optimized and staffed to clear the required pipeline.</span></p>`;
+  } else {
+    let bottleneck = (m.totalEvalsFed < m.ceEvalDemand) ? "Phone Screen" : "Clinical Evaluation";
+    if (m.totalEvalsFed < m.ceEvalDemand && m.ceEvCap < m.ceEvalDemand) bottleneck = "Phone Screen and Clinical Evaluation";
+    narrative += `<span style="color:#ef4444;">We are projecting a shortfall of ${fmt(m.tgt - m.maxYield)} enrollments. This system is primarily constrained by <strong>${bottleneck}</strong> capacity, meaning pipeline flow will stall.</span></p>`;
+  }
+  
+  const strictPenalty = m.reqCEsStrict - m.reqCEs;
+  if (strictPenalty > 0.5) {
+    narrative += `<p><strong>⚠️ The Cost of Rigidity (The Suitcase Paradox):</strong> In a fluid environment, we only need <strong>${m.reqCEs.toFixed(1)} CEs</strong>. However, because our daily quotas strictly cap what a CE can do, the math dictates we need <strong>${m.reqCEsStrict.toFixed(1)} CEs</strong> to clear the bottlenecked queue. This rigid policy is artificially inflating our headcount requirement by <strong>${strictPenalty.toFixed(1)} FTEs</strong> who would effectively sit idle for portions of their shift.</p>`;
+  }
+
+  narrative += `<p><strong>2. PFA Arbitrage Strategy:</strong> By diverting ${rv('pfaPct')}% of volume to PFAs, we are shielding CEs from <strong>${fmt(m.pfaPsDemand)} phone screens</strong>. `;
+  if (pfaDeficit > 0.5) {
+    narrative += `However, we are short <strong>${pfaDeficit.toFixed(1)} PFAs</strong>. The current PFA team can only process ${fmt(m.pfaPsCap)} screens, creating a top-of-funnel choke point.</p>`;
+  } else {
+    narrative += `The PFA team is adequately staffed to absorb this volume without bottlenecking.</p>`;
+  }
+
+  narrative += `<p><strong>3. CE Clinical Staffing:</strong> `;
+  if (ceDeficit > 0.5) {
+    narrative += `Even with PFA diversion, we remain short <strong>${ceDeficit.toFixed(1)} CEs</strong> to handle the downstream demand of ${fmt(m.ceEvalDemand)} evaluations. We must increase CE headcount or face severe scheduling delays.</p>`;
+  } else if (ceDeficit < -0.5) {
+    narrative += `CEs have a healthy capacity surplus and are well-staffed to clear the evaluation queue.</p>`;
+  } else {
+    narrative += `CE headcount is perfectly balanced with incoming clinical demand.</p>`;
+  }
+
+  document.getElementById('narrative-output').innerHTML = narrative;
+
+  const maxBar = Math.max(m.systemPsDemand, m.systemPsCap) * 1.1;
+  document.getElementById('demand-bars').innerHTML = `
+    <div class="funnel-row"><div class="funnel-lbl">Total PS Demand</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-std" style="width:${(m.systemPsDemand/maxBar)*100}%"><span>${fmt(m.systemPsDemand)}</span></div></div></div>
+    <div class="funnel-row"><div class="funnel-lbl">Total Eval Demand</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-std" style="width:${(m.ceEvalDemand/maxBar)*100}%"><span>${fmt(m.ceEvalDemand)}</span></div></div></div>
+  `;
+  document.getElementById('capacity-bars').innerHTML = `
+    <div class="funnel-row"><div class="funnel-lbl">CE PS Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-cap" style="width:${(m.cePsCap/maxBar)*100}%"><span>${fmt(m.cePsCap)}</span></div></div></div>
+    <div class="funnel-row"><div class="funnel-lbl">PFA PS Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-pfa" style="width:${(m.pfaPsCap/maxBar)*100}%"><span>${fmt(m.pfaPsCap)}</span></div></div></div>
+    <div class="funnel-row"><div class="funnel-lbl">CE Eval Capacity</div><div class="funnel-bar-wrap"><div class="funnel-bar bar-cap" style="width:${(m.ceEvCap/maxBar)*100}%"><span>${fmt(m.ceEvCap)}</span></div></div></div>
+  `;
+
+  updateChart();
+}
+
+function updateChart() {
+  const reqCeData = MONTHS.map((_, i) => calculateMetrics(i).reqCEs);
+  const reqCeStrictData = MONTHS.map((_, i) => calculateMetrics(i).reqCEsStrict);
+  const reqPfaData = MONTHS.map((_, i) => calculateMetrics(i).reqPFAs);
+  const curCeStaff = rv('stdCEs') + rv('leadCEs');
+  const curPfaStaff = rv('pfaHeadcount');
+  
+  if (chart) { 
+    chart.data.labels = MONTHS;
+    chart.data.datasets[0].data = reqCeData; 
+    chart.data.datasets[1].data = reqCeStrictData;
+    chart.data.datasets[2].data = MONTHS.map(() => curCeStaff);
+    chart.data.datasets[3].data = reqPfaData;
+    chart.data.datasets[4].data = MONTHS.map(() => curPfaStaff);
+    chart.update(); 
+    return; 
+  }
+  
+  chart = new Chart(document.getElementById('headcountChart').getContext('2d'), {
+    type: 'line', 
+    data: { 
+      labels: MONTHS, 
+      datasets: [
+        { label: 'Ideal CEs', data: reqCeData, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.3 },
+        { label: 'Strict Quota CEs', data: reqCeStrictData, borderColor: '#ef4444', borderDash: [4,4], pointRadius: 0, borderWidth: 2, tension: 0.3 },
+        { label: 'Current CEs', data: MONTHS.map(() => curCeStaff), borderColor: '#3b82f6', borderDash: [5,5], pointRadius: 0 },
+        { label: 'Required PFAs', data: reqPfaData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3 },
+        { label: 'Current PFAs', data: MONTHS.map(() => curPfaStaff), borderColor: '#06b6d4', borderDash: [5,5], pointRadius: 0 }
+      ] 
+    },
+    options: { 
+      responsive: true, maintainAspectRatio: false, 
+      interaction: { mode: 'index', intersect: false },
+      plugins: { 
+        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, color: '#94a3b8' } },
+        tooltip: {
+          backgroundColor: 'rgba(15, 17, 23, 0.9)',
+          titleColor: '#f1f5f9',
+          bodyColor: '#cbd5e1',
+          borderColor: '#3d4a63',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + context.parsed.y.toFixed(1);
+            }
+          }
+        }
+      },
+      scales: { 
+        y: { beginAtZero: false, grid: { color: '#2d3548' }, ticks: { color: '#94a3b8' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+      } 
+    }
+  });
+}
+
+window.onload = () => { 
+  updatePresetDropdown();
+  renderMonthBar();
+  setMonth(0); 
+  initFirebaseSync(); 
+};
+</script>
+</body>
+</html>
